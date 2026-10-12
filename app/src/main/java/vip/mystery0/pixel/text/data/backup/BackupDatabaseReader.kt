@@ -44,7 +44,7 @@ class BackupDatabaseReader(private val snapshots: AppDatabaseSnapshotter) {
                         }
                         backupRequire(type == "table" && name in definition.tables, "数据库包含不允许的结构")
                         val expected = tableSql(definition.database.openHelper.readableDatabase, name)
-                        backupRequire(normalize(expected) == normalize(cursor.getString(2)), "数据库结构不匹配")
+                        backupRequire(matchesTableSchema(definition.name, name, expected, cursor.getString(2)), "数据库结构不匹配")
                         tables += name
                     }
                 }
@@ -101,5 +101,30 @@ class BackupDatabaseReader(private val snapshots: AppDatabaseSnapshotter) {
     fun open(file: File): SQLiteDatabase = SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY).apply {
         execSQL("PRAGMA trusted_schema=OFF")
     }
+    private fun matchesTableSchema(database: String, table: String, expected: String, actual: String): Boolean {
+        if (normalize(expected) == normalize(actual)) return true
+        if (database != "spam.db") return false
+        // Room 新建与历史迁移的 SQL 文本不同，只兼容这两种已知定义；不放行任意同列结构。
+        val known = when (table) {
+            "blocked_keyword" -> listOf(
+                "CREATE TABLE `blocked_keyword` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `keyword` TEXT NOT NULL, `normalized_keyword` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL)",
+                "CREATE TABLE blocked_keyword (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, keyword TEXT NOT NULL, normalized_keyword TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
+            )
+            "sender_whitelist_rule" -> listOf(
+                "CREATE TABLE `sender_whitelist_rule` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `type` TEXT NOT NULL, `value` TEXT NOT NULL, `updated_at` INTEGER NOT NULL)",
+                "CREATE TABLE sender_whitelist_rule (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, type TEXT NOT NULL, value TEXT NOT NULL, updated_at INTEGER NOT NULL)",
+            )
+            "spam_allowed_message" -> listOf(
+                "CREATE TABLE `spam_allowed_message` (`message_id` INTEGER NOT NULL, `fingerprint` TEXT NOT NULL, `allowed_at` INTEGER NOT NULL, PRIMARY KEY(`message_id`))",
+                "CREATE TABLE spam_allowed_message (message_id INTEGER NOT NULL PRIMARY KEY, fingerprint TEXT NOT NULL, allowed_at INTEGER NOT NULL)",
+            )
+            else -> return false
+        }.map(::normalizeKnownSchema)
+        return normalizeKnownSchema(expected) in known && normalizeKnownSchema(actual) in known
+    }
+
+    private fun normalizeKnownSchema(sql: String): String = normalize(sql)
+        .replace(Regex("\\s+"), " ")
+        .replace(Regex("\\s*([(),])\\s*"), "$1")
     private fun normalize(sql: String): String = sql.replace(Regex("(?i)IF\\s+NOT\\s+EXISTS\\s+"), "").trim()
 }
