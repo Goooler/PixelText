@@ -19,7 +19,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import vip.mystery0.pixel.text.BuildConfig
 import vip.mystery0.pixel.text.data.repository.OutgoingMmsRepository
 import vip.mystery0.pixel.text.data.repository.mirror.MessageMirrorSynchronizer
 import vip.mystery0.pixel.text.domain.model.mirror.MessageTransport
@@ -86,14 +85,12 @@ class MmsSendCoordinator(
     }
     suspend fun preparedSize(snapshot: MmsSendSnapshot): Int = withContext(Dispatchers.IO) { composer.compose(snapshot, PREVIEW_TRANSACTION).bytes.size }
     suspend fun accept(draftId: String, revision: Long, snapshot: MmsSendSnapshot, possibleDuplicateOf: String? = null): String = withContext(Dispatchers.IO) {
-        if (!BuildConfig.MMS_SENDING_ENABLED) throw MmsSendException("彩信发送尚未完成运营商验收，此构建未开启")
         checkPrerequisites()
         if (policies.resolve(snapshot.subscriptionId).fingerprint != snapshot.policy.fingerprint) throw MmsSendException("SIM 或运营商配置已变化，请重新准备并确认")
         composer.compose(snapshot, PREVIEW_TRANSACTION)
         repository.accept(draftId, revision, snapshot, possibleDuplicateOf).also { scheduleRecovery() }
     }
     suspend fun retryFailed(requestId: String) {
-        if (!BuildConfig.MMS_SENDING_ENABLED) throw MmsSendException("此构建未开启彩信发送")
         val old = repository.get(requestId) ?: throw MmsSendException("发送记录不可用")
         checkPrerequisites()
         if (policies.resolve(old.snapshot.subscriptionId).fingerprint != old.snapshot.policy.fingerprint) throw MmsSendException("SIM 或配置已变化，请恢复草稿重新确认")
@@ -147,10 +144,7 @@ class MmsSendCoordinator(
                         MmsSendState.AWAITING_RESULT -> if (now - (message.submittedAt ?: now) >= RESULT_WAIT_MILLIS) {
                             repository.unknown(message.attemptToken, "暂未收到发送结果，可能已经发出")
                         }
-                        MmsSendState.PREPARING -> {
-                            if (!BuildConfig.MMS_SENDING_ENABLED) repository.failBeforeDispatch(message.attemptToken, "此构建未开启彩信发送")
-                            else prepareRequest(message)
-                        }
+                        MmsSendState.PREPARING -> prepareRequest(message)
                         else -> Unit
                     }
                     message = repository.get(message.requestId) ?: return@forEach
@@ -196,7 +190,6 @@ class MmsSendCoordinator(
         } else repository.enqueueCleanup(pdu.absolutePath)
     }
     private suspend fun dispatch(message: OutgoingMmsMessage) {
-        if (!BuildConfig.MMS_SENDING_ENABLED) throw MmsSendException("此构建未开启彩信发送")
         checkPrerequisites()
         if (policies.resolve(message.snapshot.subscriptionId).fingerprint != message.snapshot.policy.fingerprint) throw MmsSendException("SIM 或配置已变化，请重新确认")
         val composed = composer.compose(message.snapshot, message.transactionId)

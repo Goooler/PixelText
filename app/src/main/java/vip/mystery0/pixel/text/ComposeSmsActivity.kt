@@ -57,18 +57,11 @@ class ComposeSmsActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     if (externalInput.requestsMms) {
-                        if (BuildConfig.MMS_SENDING_ENABLED) {
-                            vip.mystery0.pixel.text.ui.message.mms.MmsComposerDialog(
-                                sessionId = "external", onClose = { finish() }, initialRecipient = externalInput.recipient,
-                                initialBody = externalInput.body, initialSubject = externalInput.subject,
-                                initialUris = externalInput.attachments, inputError = externalInput.error, isExternalInput = true,
-                            )
-                        } else {
-                            Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
-                                Text("此构建尚未开启彩信发送，请完成运营商验收后使用")
-                                Button(onClick = { finish() }) { Text("返回") }
-                            }
-                        }
+                        vip.mystery0.pixel.text.ui.message.mms.MmsComposerDialog(
+                            sessionId = "external", onClose = { finish() }, initialRecipient = externalInput.recipient,
+                            initialBody = externalInput.body, initialSubject = externalInput.subject,
+                            initialUris = externalInput.attachments, inputError = externalInput.error, isExternalInput = true,
+                        )
                         return@Surface
                     }
                     var targetAddress by rememberSaveable { mutableStateOf(address) }

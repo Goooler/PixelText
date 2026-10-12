@@ -19,7 +19,6 @@ import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
-import vip.mystery0.pixel.text.BuildConfig
 import vip.mystery0.pixel.text.data.repository.OutgoingMmsRepository
 import vip.mystery0.pixel.text.mms.outgoing.*
 import vip.mystery0.pixel.text.viewmodel.MmsComposerViewModel
@@ -87,12 +86,12 @@ fun OutgoingMmsStatus(message: OutgoingMmsMessage, coordinator: MmsSendCoordinat
                     if (message.state in setOf(MmsSendState.PREPARING, MmsSendState.READY)) DropdownMenuItem(text = { Text("取消发送") }, onClick = {
                         menu = false; scope.launch { if (!coordinator.cancel(message.requestId)) error = "已交给系统，无法撤回" }
                     })
-                    if (BuildConfig.MMS_SENDING_ENABLED && !message.deleted && message.state == MmsSendState.FAILED) DropdownMenuItem(text = { Text("手动重试") }, onClick = {
+                    if (!message.deleted && message.state == MmsSendState.FAILED) DropdownMenuItem(text = { Text("手动重试") }, onClick = {
                         menu = false; scope.launch {
                             try { coordinator.retryFailed(message.requestId) } catch (e: Exception) { error = (e as? MmsSendException)?.userMessage ?: "重试未接纳，请检查记录" }
                         }
                     })
-                    if (BuildConfig.MMS_SENDING_ENABLED && !message.deleted && message.state in setOf(MmsSendState.UNKNOWN, MmsSendState.FAILED, MmsSendState.CANCELLED)) DropdownMenuItem(
+                    if (!message.deleted && message.state in setOf(MmsSendState.UNKNOWN, MmsSendState.FAILED, MmsSendState.CANCELLED)) DropdownMenuItem(
                         text = { Text(if (message.state == MmsSendState.UNKNOWN) "查看重发风险" else "恢复编辑") },
                         onClick = { menu = false; resendSession = UUID.randomUUID().toString() },
                     )

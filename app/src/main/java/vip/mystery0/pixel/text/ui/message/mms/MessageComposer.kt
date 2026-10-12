@@ -48,7 +48,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
-import vip.mystery0.pixel.text.BuildConfig
 import vip.mystery0.pixel.text.mms.outgoing.MmsRecipient
 import vip.mystery0.pixel.text.mms.outgoing.MmsPayloadStore
 import vip.mystery0.pixel.text.mms.outgoing.MmsAttachment
@@ -130,9 +129,7 @@ fun MessageComposer(
         (draft.body.isNotBlank() || draft.attachments.isNotEmpty())
     fun submit() {
         localError = null
-        if (isMms && !BuildConfig.MMS_SENDING_ENABLED) {
-            localError = "当前版本尚未开放彩信发送，内容已保留"
-        } else if ((isMms && !consent.getBoolean("acknowledged", false)) || state.possibleDuplicateOf != null) {
+        if ((isMms && !consent.getBoolean("acknowledged", false)) || state.possibleDuplicateOf != null) {
             confirm = true
         } else viewModel.submit()
     }
@@ -187,7 +184,7 @@ fun MessageComposer(
                     }
                 } else {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-                        IconButton(onClick = { menu = true }, enabled = enabled && BuildConfig.MMS_SENDING_ENABLED) {
+                        IconButton(onClick = { menu = true }, enabled = enabled) {
                             Icon(Icons.Default.Add, "添加附件")
                         }
                         BasicTextField(
