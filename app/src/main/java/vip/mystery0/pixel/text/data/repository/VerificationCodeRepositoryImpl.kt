@@ -1,7 +1,10 @@
 package vip.mystery0.pixel.text.data.repository
 
+import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -86,19 +89,26 @@ class VerificationCodeRepositoryImpl(
         }
     }
 
-    override suspend fun rebuildAll() = withContext(Dispatchers.IO) {
-        writeMutex.withLock { rebuildAllLocked() }
+    override suspend fun rebuildAll(onProgress: ((Long, Long?) -> Unit)?) = withContext(Dispatchers.IO) {
+        writeMutex.withLock { rebuildAllLocked(onProgress) }
     }
 
-    private suspend fun rebuildAllLocked() {
+    private suspend fun rebuildAllLocked(onProgress: ((Long, Long?) -> Unit)? = null) {
         val metadata = ensureMetadata()
         val generation = metadata.activeGeneration + 1
         val ruleVersion = currentRuleVersion()
         try {
             dao.deleteGeneration(generation)
             dao.deleteScanGeneration(generation)
+            var processedCount = 0L
+            var totalCount = if (onProgress != null) telephonyDataSource.getSmsIndexCount() else null
+            onProgress?.invoke(processedCount, totalCount)
             forEachSmsSummaryPage { summaries ->
                 processPage(summaries, generation, ruleVersion, null)
+                processedCount += summaries.size
+                // 扫描期间可能新收到短信，不能把过期总数继续显示成准确上限。
+                if (totalCount != null && processedCount > requireNotNull(totalCount)) totalCount = null
+                onProgress?.invoke(processedCount, totalCount)
             }
             database.activateGeneration(generation, ruleVersion, System.currentTimeMillis())
         } catch (error: Throwable) {
@@ -167,6 +177,7 @@ class VerificationCodeRepositoryImpl(
     ) {
         var beforeMessageId: Long? = null
         while (true) {
+            currentCoroutineContext().ensureActive()
             val summaries = telephonyDataSource.getSmsIndexSummaries(
                 beforeMessageId = beforeMessageId,
                 limit = SMS_SCAN_BATCH_SIZE,
@@ -193,27 +204,34 @@ class VerificationCodeRepositoryImpl(
         generation: Long,
         ruleVersion: String,
     ) {
-        val result = parser.parse(summary.address, body) as? ParsedResult.VerificationCode
-        if (result == null) {
+        val entry = parseIndexEntry(summary, body, generation, ruleVersion)
+        if (entry == null) {
             dao.deleteMessage(generation, summary.id)
             return
         }
-        dao.upsertEntries(
-            listOf(
-                VerificationCodeIndexEntity(
-                    messageId = summary.id,
-                    threadId = summary.threadId,
-                    address = summary.address,
-                    timestamp = summary.date,
-                    monthKey = monthFormatter.format(
-                        Instant.ofEpochMilli(summary.date).atZone(ZoneId.systemDefault())
-                    ),
-                    code = result.code,
-                    signature = result.signature,
-                    ruleVersion = ruleVersion,
-                    generation = generation,
-                )
-            )
+        dao.upsertEntries(listOf(entry))
+    }
+
+    private fun parseIndexEntry(
+        summary: SmsIndexSummaryRow,
+        body: String,
+        generation: Long,
+        ruleVersion: String,
+    ): VerificationCodeIndexEntity? {
+        val result = parser.parse(summary.address, body) as? ParsedResult.VerificationCode
+            ?: return null
+        return VerificationCodeIndexEntity(
+            messageId = summary.id,
+            threadId = summary.threadId,
+            address = summary.address,
+            timestamp = summary.date,
+            monthKey = monthFormatter.format(
+                Instant.ofEpochMilli(summary.date).atZone(ZoneId.systemDefault())
+            ),
+            code = result.code,
+            signature = result.signature,
+            ruleVersion = ruleVersion,
+            generation = generation,
         )
     }
 
@@ -228,17 +246,22 @@ class VerificationCodeRepositoryImpl(
             .orEmpty().associateBy { it.messageId }
         val oldEntries = sourceGeneration?.let { dao.getEntries(it, ids) }
             .orEmpty().associateBy { it.messageId }
-        val copiedEntries = mutableListOf<VerificationCodeIndexEntity>()
-        val scanStates = summaries.map { summary ->
+        val fingerprints = summaries.associate { it.id to it.metadataFingerprint() }
+        val unchangedIds = summaries.filter { summary ->
             val old = oldStates[summary.id]
-            val unchanged = old != null && old.threadId == summary.threadId &&
+            old != null && old.threadId == summary.threadId &&
                 old.address == summary.address && old.timestamp == summary.date &&
-                old.metadataFingerprint == summary.metadataFingerprint()
-            if (unchanged) {
-                oldEntries[summary.id]?.let { copiedEntries += it.copy(generation = generation) }
+                old.metadataFingerprint == fingerprints.getValue(summary.id)
+        }.mapTo(mutableSetOf()) { it.id }
+        val bodies = telephonyDataSource.getSmsBodies(ids.filterNot { it in unchangedIds })
+        val entries = mutableListOf<VerificationCodeIndexEntity>()
+        val scanStates = summaries.map { summary ->
+            currentCoroutineContext().ensureActive()
+            if (summary.id in unchangedIds) {
+                oldEntries[summary.id]?.let { entries += it.copy(generation = generation) }
             } else {
-                telephonyDataSource.getSmsBody(summary.id)?.let { body ->
-                    indexIntoGeneration(summary, body, generation, ruleVersion)
+                bodies[summary.id]?.let { body ->
+                    parseIndexEntry(summary, body, generation, ruleVersion)?.let { entries += it }
                 }
             }
             SmsScanStateEntity(
@@ -247,11 +270,14 @@ class VerificationCodeRepositoryImpl(
                 threadId = summary.threadId,
                 address = summary.address,
                 timestamp = summary.date,
-                metadataFingerprint = summary.metadataFingerprint(),
+                metadataFingerprint = fingerprints.getValue(summary.id),
             )
         }
-        if (copiedEntries.isNotEmpty()) dao.upsertEntries(copiedEntries)
-        dao.upsertScanStates(scanStates)
+        // 本轮目标代已清空；未命中和已删除短信无需逐条删除，旧代在切换时统一清理。
+        database.withTransaction {
+            if (entries.isNotEmpty()) dao.upsertEntries(entries)
+            dao.upsertScanStates(scanStates)
+        }
     }
 
     /**

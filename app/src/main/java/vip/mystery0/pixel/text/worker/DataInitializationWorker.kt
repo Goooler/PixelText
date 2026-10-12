@@ -20,6 +20,8 @@ class DataInitializationWorker(context: Context, parameters: WorkerParameters) :
     private val repository: DataInitializationRepository by inject()
     private val coordinator: DataInitializationCoordinator by inject()
     private val indexer: MmsTextIndexer by inject()
+    private val scheduler: DataInitializationScheduler by inject()
+    private val database: vip.mystery0.pixel.text.data.db.mirror.MessageMirrorDatabase by inject()
 
     override suspend fun doWork(): Result {
         val initial = repository.read()
@@ -36,7 +38,19 @@ class DataInitializationWorker(context: Context, parameters: WorkerParameters) :
                     Result.success()
                 }
 
-                InitializationStepResult.More -> Result.retry()
+                InitializationStepResult.More -> {
+                    val latest = repository.read()
+                    val yielded = listOf("SMS", "MMS").any {
+                        database.syncDao().state(it)?.error == "budget_yield"
+                    }
+                    val advanced = latest.nextPhase != initial.nextPhase ||
+                        latest.afterLocalId != initial.afterLocalId
+                    if (yielded || advanced) {
+                        scheduler.enqueueContinuation()
+                        Log.i("DataInitialization", "initialization continuation phase=${latest.nextPhase} checkpoint=${latest.afterLocalId}")
+                        Result.success()
+                    } else Result.retry()
+                }
                 is InitializationStepResult.Blocked -> {
                     failure(result.category, InitializationStatus.FAILED)
                     Result.failure()
@@ -50,6 +64,8 @@ class DataInitializationWorker(context: Context, parameters: WorkerParameters) :
         } catch (error: Exception) {
             failure(error.javaClass.simpleName, InitializationStatus.FAILED)
             Result.retry()
+        } finally {
+            repository.pauseProgress()
         }
     }
 

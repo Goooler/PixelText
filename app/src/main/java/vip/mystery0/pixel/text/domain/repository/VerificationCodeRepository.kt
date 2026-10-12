@@ -19,7 +19,8 @@ interface VerificationCodeRepository {
         timestamp: Long,
     )
 
-    suspend fun rebuildAll()
+    /** 每批完成后报告实际处理数；无法低成本取得总数时总数为空。 */
+    suspend fun rebuildAll(onProgress: ((Long, Long?) -> Unit)? = null)
 
     suspend fun reconcile()
 

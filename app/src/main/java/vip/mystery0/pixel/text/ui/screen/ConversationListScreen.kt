@@ -116,6 +116,7 @@ import vip.mystery0.pixel.text.R
 import vip.mystery0.pixel.text.domain.model.ConversationModel
 import vip.mystery0.pixel.text.domain.settings.ConversationSwipeAction
 import vip.mystery0.pixel.text.ui.component.SenderAvatar
+import vip.mystery0.pixel.text.ui.message.DataInitializationProgressContent
 import vip.mystery0.pixel.text.ui.createDefaultSmsAppRequestIntent
 import vip.mystery0.pixel.text.ui.isDefaultSmsApp
 import vip.mystery0.pixel.text.ui.ObserveListScrollDirection
@@ -264,6 +265,7 @@ fun ConversationListScreen(
     val uiState by viewModel.uiState.collectAsState()
     val settings by viewModel.settings.collectAsState()
     val initialization by viewModel.initializationState.collectAsState()
+    val initializationProgress by viewModel.initializationProgress.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val markAllReadProgress by viewModel.markAllReadProgress.collectAsState()
     val listState = rememberSaveable(saver = LazyListState.Saver) {
@@ -604,25 +606,19 @@ fun ConversationListScreen(
             initialization.status == vip.mystery0.pixel.text.domain.model.InitializationStatus.FAILED
         val permission =
             initialization.status == vip.mystery0.pixel.text.domain.model.InitializationStatus.WAITING_PERMISSION
-        val phase = when (initialization.nextPhase) {
-            vip.mystery0.pixel.text.domain.model.InitializationPhase.MIRROR -> "正在导入短信和彩信"
-            vip.mystery0.pixel.text.domain.model.InitializationPhase.MMS_TEXT -> "正在解析彩信文本"
-            vip.mystery0.pixel.text.domain.model.InitializationPhase.SPAM -> "正在识别历史骚扰短信"
-            vip.mystery0.pixel.text.domain.model.InitializationPhase.VERIFICATION -> "正在建立验证码索引"
-            vip.mystery0.pixel.text.domain.model.InitializationPhase.COMPLETE -> "正在完成数据准备"
-        }
         AlertDialog(
             onDismissRequest = {},
             title = { Text(if (initialization.isNewerVersion) "数据版本不兼容" else "正在准备应用数据") },
             text = {
-                Text(
-                    when {
-                        initialization.isNewerVersion -> "这些数据由较新版本创建，请更新应用后再使用。"
-                        permission -> "请授予短信权限后重试，已有数据不会被清除。"
-                        failed -> "数据准备未完成，可重试继续。错误类别：${initialization.errorCategory.orEmpty()}"
-                        else -> "$phase，请稍候…"
-                    }
-                )
+                when {
+                    initialization.isNewerVersion -> Text("这些数据由较新版本创建，请更新应用后再使用。")
+                    permission -> Text("请授予短信权限后重试，已有数据不会被清除。")
+                    failed -> Text("数据准备未完成，可重试继续。错误类别：${initialization.errorCategory.orEmpty()}")
+                    else -> DataInitializationProgressContent(
+                        phase = initialization.nextPhase,
+                        progress = initializationProgress,
+                    )
+                }
             },
             dismissButton = {
                 if (failed) TextButton(onClick = onNavigateToSettings) { Text("设置") }

@@ -23,6 +23,15 @@ class DataInitializationScheduler(
     fun checkOnLaunch() = schedule(false)
     fun retry() = schedule(true)
 
+    /** 正常预算让出接续当前唯一任务链，不使用失败重试的指数退避。 */
+    suspend fun enqueueContinuation() = withContext(Dispatchers.IO) {
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            UNIQUE_WORK_NAME,
+            ExistingWorkPolicy.APPEND_OR_REPLACE,
+            OneTimeWorkRequestBuilder<DataInitializationWorker>().build(),
+        ).result.get()
+    }
+
     private fun schedule(retry: Boolean) {
         scope.launch {
             try {

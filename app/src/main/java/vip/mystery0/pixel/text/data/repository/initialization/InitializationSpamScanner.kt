@@ -7,6 +7,7 @@ import vip.mystery0.pixel.text.data.repository.mirror.MirrorSynchronizationLock
 import vip.mystery0.pixel.text.domain.spam.SenderWhitelistRepository
 import vip.mystery0.pixel.text.data.db.mirror.MessageMirrorDatabase
 import vip.mystery0.pixel.text.domain.model.InitializationBatchResult
+import vip.mystery0.pixel.text.domain.spam.SpamClassifier
 import vip.mystery0.pixel.text.domain.spam.SpamClassifierFactory
 import vip.mystery0.pixel.text.domain.spam.SpamRepository
 import java.io.IOException
@@ -18,10 +19,17 @@ class InitializationSpamScanner(
     private val classifiers: SpamClassifierFactory,
     private val whitelist: SenderWhitelistRepository,
 ) {
+    /** 会话由调用方独占并关闭，不在扫描器中保存跨任务可变实例。 */
+    suspend fun openSession(): SpamClassifier {
+        currentCoroutineContext().ensureActive()
+        return classifiers.create()
+    }
+
     suspend fun scanBatch(
         afterLocalId: Long,
         upperLocalId: Long,
         limit: Int = 200,
+        classifier: SpamClassifier? = null,
     ): InitializationBatchResult {
         require(limit > 0)
         // 协调器会记录禁用原因；过程中关闭时也不擅自开启分类。
@@ -29,8 +37,8 @@ class InitializationSpamScanner(
         val dao = database.mirrorDao()
         val rows = dao.initializationBatch("SMS", afterLocalId, upperLocalId, limit)
         if (rows.isEmpty()) return InitializationBatchResult(afterLocalId, complete = true)
-        var checkpoint = afterLocalId
-        classifiers.create().use { classifier ->
+        suspend fun scanWithClassifier(activeClassifier: SpamClassifier): InitializationBatchResult {
+            var checkpoint = afterLocalId
             for (row in rows) {
                 currentCoroutineContext().ensureActive()
                 if (!repository.isEnabled()) return InitializationBatchResult(
@@ -39,7 +47,7 @@ class InitializationSpamScanner(
                 )
                 val sms = row.sms ?: throw IOException("sms_structure_missing")
                 val score =
-                    if (whitelist.isAllowed(row.message.sourceId)) 0f else classifier.classify(sms.body.orEmpty())
+                    if (whitelist.isAllowed(row.message.sourceId)) 0f else activeClassifier.classify(sms.body.orEmpty())
                 if (!score.isFinite() || score < 0f) throw IOException("spam_classification_unavailable")
                 // 分类期间被修改的数据由下一批重读，不以旧内容推进检查点。
                 val unchanged = MirrorSynchronizationLock.mutex.withLock {
@@ -55,7 +63,10 @@ class InitializationSpamScanner(
                 if (!unchanged) return InitializationBatchResult(checkpoint, complete = false)
                 checkpoint = row.message.localId
             }
+            return InitializationBatchResult(checkpoint, complete = rows.size < limit)
         }
-        return InitializationBatchResult(checkpoint, complete = rows.size < limit)
+        // 传入的会话只借用；兼容旧调用时仍负责关闭本批创建的分类器。
+        return if (classifier != null) scanWithClassifier(classifier)
+        else classifiers.create().use { scanWithClassifier(it) }
     }
 }

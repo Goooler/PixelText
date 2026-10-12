@@ -155,7 +155,7 @@ val appModule = module {
     single { TelephonyDataSource(androidContext(), get()) }
     single { vip.mystery0.pixel.text.sms.SmsSendCoordinator(androidContext(), get(), get()) }
     single { MessageMirrorDatabase.create(androidContext()) }
-    single { vip.mystery0.pixel.text.data.repository.initialization.DataInitializationRepository(get()) }
+    single { vip.mystery0.pixel.text.data.repository.initialization.DataInitializationRepository(get(), get()) }
     single {
         vip.mystery0.pixel.text.data.repository.initialization.DataInitializationGuard(
             get(),

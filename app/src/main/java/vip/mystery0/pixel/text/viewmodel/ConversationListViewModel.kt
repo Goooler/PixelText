@@ -43,6 +43,10 @@ class ConversationListViewModel(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), null,
     )
 
+    val initializationProgress = initializationRepository.observeProgress().stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5_000), null,
+    )
+
     fun retryInitialization() = initializationScheduler.retry()
 
     private val _isRefreshing = MutableStateFlow(false)

@@ -5,11 +5,16 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.Cursor
 import android.net.Uri
+import android.os.CancellationSignal
 import android.provider.Telephony
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
 import android.util.Log
 import androidx.core.net.toUri
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import java.nio.charset.Charset
 
 private const val TELEPHONY_TAG = "TelephonyDataSource"
@@ -99,6 +104,35 @@ class TelephonyDataSource(
 ) {
     private val simNameCache = mutableMapOf<Int, String>()
 
+    /** 总数仅供进度估算；读取失败不影响索引，取消仍传播给调用方。 */
+    suspend fun getSmsIndexCount(): Long? = messageCount(Telephony.Sms.CONTENT_URI)
+
+    suspend fun getMmsCount(): Long? = messageCount(Telephony.Mms.CONTENT_URI)
+
+    private suspend fun messageCount(uri: Uri): Long? = withContext(Dispatchers.IO) {
+        suspendCancellableCoroutine { continuation ->
+            val signal = CancellationSignal()
+            continuation.invokeOnCancellation { signal.cancel() }
+            try {
+                val count = contentResolver.query(
+                    uri,
+                    arrayOf(Telephony.Sms._ID),
+                    null,
+                    null,
+                    null,
+                    signal,
+                )?.use { it.count.toLong() }
+                if (continuation.isActive) continuation.resumeWith(Result.success(count))
+            } catch (error: Exception) {
+                if (error is CancellationException || !continuation.isActive) {
+                    continuation.cancel(error)
+                } else {
+                    continuation.resumeWith(Result.success(null))
+                }
+            }
+        }
+    }
+
     fun getSmsIndexSummaries(
         beforeMessageId: Long? = null,
         limit: Int = DEFAULT_INDEX_BATCH_SIZE,
@@ -153,6 +187,30 @@ class TelephonyDataSource(
             cursor.getString(cursor.getColumnIndexOrThrow(Telephony.Sms.BODY)).orEmpty()
         } else {
             null
+        }
+    }
+
+    /** 批量读取权威 Provider 正文，缺失的 ID 不加入结果。 */
+    fun getSmsBodies(messageIds: Collection<Long>): Map<Long, String> {
+        if (messageIds.isEmpty()) return emptyMap()
+        return buildMap {
+            messageIds.distinct().chunked(MAX_QUERY_ARGS).forEach { chunk ->
+                val selection = "${Telephony.Sms._ID} IN (${chunk.joinToString(",") { "?" }})"
+                val cursor = contentResolver.query(
+                    Telephony.Sms.CONTENT_URI,
+                    arrayOf(Telephony.Sms._ID, Telephony.Sms.BODY),
+                    selection,
+                    chunk.map(Long::toString).toTypedArray(),
+                    null,
+                ) ?: throw IllegalStateException("sms body query returned null")
+                cursor.use {
+                    val idIndex = it.getColumnIndexOrThrow(Telephony.Sms._ID)
+                    val bodyIndex = it.getColumnIndexOrThrow(Telephony.Sms.BODY)
+                    while (it.moveToNext()) {
+                        put(it.getLong(idIndex), it.getString(bodyIndex).orEmpty())
+                    }
+                }
+            }
         }
     }
 

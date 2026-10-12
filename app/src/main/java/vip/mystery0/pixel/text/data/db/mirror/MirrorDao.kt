@@ -8,6 +8,9 @@ abstract class MirrorDao {
     @Query("SELECT MAX(localId) FROM mirror_message")
     abstract suspend fun maximumLocalId(): Long?
 
+    @Query("SELECT COUNT(*) FROM mirror_message WHERE transport=:transport AND localId <= :upperLocalId")
+    abstract suspend fun initializationCount(transport: String, upperLocalId: Long): Long
+
     @Transaction
     @Query("SELECT * FROM mirror_message WHERE transport=:transport AND localId > :afterLocalId AND localId <= :upperLocalId ORDER BY localId LIMIT :limit")
     abstract suspend fun initializationBatch(
