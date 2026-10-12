@@ -85,10 +85,8 @@ internal fun DataInitializationProgressContent(
                     modifier = Modifier.fillMaxWidth(),
                 )
             } else {
-                // 迁移期间关闭连续横移，减少重复绘制开销。
                 LinearWavyProgressIndicator(
                     progress = { fraction },
-                    waveSpeed = 0.dp,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
