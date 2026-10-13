@@ -121,7 +121,9 @@ fun SenderWhitelistDialogs(
                     if (state.busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
             },
-            confirmButton = { TextButton(onClick = viewModel::confirmDelete, enabled = !state.busy) { Text("删除") } },
+            confirmButton = { TextButton(onClick = viewModel::confirmDelete, enabled = !state.busy) {
+                Text("删除", color = MaterialTheme.colorScheme.error)
+            } },
             dismissButton = { TextButton(onClick = viewModel::dismissDialog, enabled = !state.busy) { Text("取消") } },
         )
     }

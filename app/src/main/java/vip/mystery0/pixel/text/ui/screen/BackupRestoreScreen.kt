@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -29,6 +30,7 @@ import java.util.Date
 fun BackupRestoreScreen(onNavigateBack: () -> Unit, viewModel: BackupViewModel = koinViewModel()) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
+    val scrollState = rememberScrollState()
     var selection by rememberSaveable(stateSaver = listSaver<Set<BackupSection>, String>(
         save = { it.map { section -> section.name } }, restore = { it.map(BackupSection::valueOf).toSet() },
     )) { mutableStateOf(BackupSection.entries.toSet()) }
@@ -52,6 +54,10 @@ fun BackupRestoreScreen(onNavigateBack: () -> Unit, viewModel: BackupViewModel =
         if (uri != null) viewModel.inspect(uri.toString(), password.takeIf { it.isNotEmpty() }?.toCharArray())
         password = ""; confirmation = ""
     }
+    LaunchedEffect(state.errorMessage, scrollState) {
+        // 错误反馈位于页首，失败后无需用户在长表单或恢复结果中查找。
+        if (!state.errorMessage.isNullOrEmpty()) scrollState.scrollTo(0)
+    }
     LaunchedEffect(state.preview?.token) {
         if (selectionToken != state.preview?.token) {
             state.preview?.let { selection = it.sections }
@@ -68,69 +74,151 @@ fun BackupRestoreScreen(onNavigateBack: () -> Unit, viewModel: BackupViewModel =
             IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回") }
         })
     }) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("备份 Pixel Text 的设置、规则和短信镜像。首版不包含彩信及附件，请在操作期间保持应用前台。")
-            if (state.restoreProtected) {
-                Text("恢复保护已开启：自动验证码清理暂缓。已写入的短信不会因取消而撤销。", color = MaterialTheme.colorScheme.error)
+        Column(
+            modifier = Modifier.fillMaxSize().padding(padding)
+                .verticalScroll(scrollState).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                "备份 Pixel Text 的设置、规则和短信镜像。首版不包含彩信及附件，请在操作期间保持应用前台。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            state.errorMessage?.let {
+                BackupFeedbackCard(title = "操作失败", description = it, isError = true)
             }
-            if (!readable) OutlinedButton(onClick = { permissions.launch(Manifest.permission.READ_SMS) }, enabled = !state.busy) { Text("授予读取短信权限") }
+            if (state.restoreProtected) {
+                BackupFeedbackCard(
+                    title = "恢复保护已开启",
+                    description = "自动验证码清理暂缓。已写入的短信不会因取消而撤销。",
+                )
+            }
+            if (!readable) OutlinedButton(
+                onClick = { permissions.launch(Manifest.permission.READ_SMS) }, enabled = !state.busy,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("授予读取短信权限") }
             if (!defaultSms) OutlinedButton(onClick = {
                 role.launch(context.getSystemService(RoleManager::class.java).createRequestRoleIntent(RoleManager.ROLE_SMS))
-            }, enabled = !state.busy) { Text("设为默认短信应用（恢复短信需要）") }
+            }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("设为默认短信应用（恢复短信需要）") }
 
             if (!state.busy && (!state.restoreProtected || preview != null)) {
-                Text(if (preview == null) "选择备份内容" else "选择恢复内容", style = MaterialTheme.typography.titleMedium)
-                BackupSection.entries.filter { preview == null || it in preview.sections }.forEach { section ->
-                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Checkbox(checked = section in selection, onCheckedChange = { selected -> selection = if (selected) selection + section else selection - section })
-                        Text(section.label)
-                    }
-                }
                 if (preview == null) {
-                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Switch(checked = encrypt, onCheckedChange = { encrypt = it })
-                        Spacer(Modifier.width(8.dp)); Text("加密导出")
+                    BackupTaskCard(title = "备份内容") {
+                        BackupSectionSelection(
+                            sections = BackupSection.entries,
+                            selection = selection,
+                            onSelectionChange = { selection = it },
+                        )
                     }
-                    OutlinedTextField(value = password, onValueChange = { password = it }, label = { Text("密码（恢复加密文件时也在此输入）") },
-                        visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
-                    if (encrypt) OutlinedTextField(value = confirmation, onValueChange = { confirmation = it }, label = { Text("导出密码确认") },
-                        visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
-                    Text("建议使用至少 12 位强密码，丢失无法找回。文件大小和条目名称等元信息仍可能可见。系统文件选择器可能包含云盘，请自行选择保存位置。", style = MaterialTheme.typography.bodySmall)
-                    Button(onClick = { if (encrypt) createFile() else warning = true }, enabled = selection.isNotEmpty() &&
-                        !state.restoreProtected && (BackupSection.SMS !in selection || readable) && (!encrypt || (password.isNotEmpty() && password == confirmation))) { Text("创建备份") }
-                    OutlinedButton(onClick = { open.launch(arrayOf("*/*")) }) { Text("选择文件并预览恢复") }
+                    BackupTaskCard(title = "导出与安全") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("加密导出", style = MaterialTheme.typography.titleSmall)
+                                Text(
+                                    "使用密码保护短信和设置内容",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Switch(checked = encrypt, onCheckedChange = { encrypt = it })
+                        }
+                        BackupPasswordField(password = password, onPasswordChange = { password = it })
+                        if (encrypt) {
+                            val mismatch = confirmation.isNotEmpty() && password != confirmation
+                            OutlinedTextField(
+                                value = confirmation,
+                                onValueChange = { confirmation = it },
+                                label = { Text("确认密码") },
+                                supportingText = { Text(if (mismatch) "两次输入的密码不一致" else "再次输入导出密码") },
+                                isError = mismatch,
+                                visualTransformation = PasswordVisualTransformation(),
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        Text(
+                            "建议使用至少 12 位强密码，丢失无法找回。文件大小和条目名称等元信息仍可能可见。系统文件选择器可能包含云盘，请自行选择保存位置。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Button(
+                            onClick = { if (encrypt) createFile() else warning = true },
+                            enabled = selection.isNotEmpty() && !state.restoreProtected &&
+                                (BackupSection.SMS !in selection || readable) &&
+                                (!encrypt || (password.isNotEmpty() && password == confirmation)),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text("创建备份") }
+                    }
+                    BackupTaskCard(title = "从文件恢复") {
+                        Text(
+                            "恢复加密文件前，请在上方“密码”输入框填写文件密码，再选择文件。",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        OutlinedButton(onClick = { open.launch(arrayOf("*/*")) }, modifier = Modifier.fillMaxWidth()) {
+                            Text("选择文件并预览恢复")
+                        }
+                    }
                 } else {
-                    Text("备份时间：${DateFormat.getDateTimeInstance().format(Date(preview.createdAt))}\n短信数量：${preview.smsCount}")
-                    Text("短信去重合并，规则取并集；选中的设置由备份覆盖。旧 SIM 标识不迁移；出站消息转为失败且不会发送。会话归档可能同时影响该会话现有彩信的列表展示。")
-                    Button(onClick = { restoreConfirm = true }, enabled = selection.isNotEmpty() &&
-                        (BackupSection.SMS !in selection || (readable && defaultSms))) { Text("恢复所选内容") }
-                    TextButton(onClick = viewModel::cancel) { Text("关闭预览") }
+                    BackupTaskCard(title = "恢复文件预览", cornerRadius = 28.dp) {
+                        Text(
+                            "备份时间：${DateFormat.getDateTimeInstance().format(Date(preview.createdAt))}\n短信数量：${preview.smsCount}",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text("选择恢复内容", style = MaterialTheme.typography.titleSmall)
+                        BackupSectionSelection(
+                            sections = BackupSection.entries.filter { it in preview.sections },
+                            selection = selection,
+                            onSelectionChange = { selection = it },
+                        )
+                        Text(
+                            "短信去重合并，规则取并集；选中的设置由备份覆盖。旧 SIM 标识不迁移；出站消息转为失败且不会发送。会话归档可能同时影响该会话现有彩信的列表展示。",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Button(
+                            onClick = { restoreConfirm = true }, enabled = selection.isNotEmpty() &&
+                                (BackupSection.SMS !in selection || (readable && defaultSms)),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text("恢复所选内容") }
+                        TextButton(onClick = viewModel::cancel) { Text("关闭预览") }
+                    }
                 }
             }
             if (state.busy) {
-                LinearProgressIndicator(Modifier.fillMaxWidth())
-                Text(when (state.phase) {
-                    BackupPhase.SYNCING_MIRROR -> "正在同步短信镜像…"
-                    BackupPhase.SNAPSHOTTING -> "正在创建应用数据库快照…"
-                    BackupPhase.EXPORTING -> "正在打包并保存备份…"
-                    BackupPhase.VALIDATING -> "正在解密并校验全部备份内容…"
-                    BackupPhase.REBUILDING -> "正在对账和重建索引…"
-                    else -> "正在恢复… ${state.processed} / ${state.total ?: "—"}"
-                })
-                OutlinedButton(onClick = viewModel::cancel) { Text("停止后续处理") }
+                BackupTaskCard(title = "操作进度") {
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                    Text(when (state.phase) {
+                        BackupPhase.SYNCING_MIRROR -> "正在同步短信镜像…"
+                        BackupPhase.SNAPSHOTTING -> "正在创建应用数据库快照…"
+                        BackupPhase.EXPORTING -> "正在打包并保存备份…"
+                        BackupPhase.VALIDATING -> "正在解密并校验全部备份内容…"
+                        BackupPhase.REBUILDING -> "正在对账和重建索引…"
+                        else -> "正在恢复… ${state.processed} / ${state.total ?: "—"}"
+                    }, style = MaterialTheme.typography.bodyMedium)
+                    OutlinedButton(onClick = viewModel::cancel, modifier = Modifier.fillMaxWidth()) { Text("停止后续处理") }
+                }
             }
-            state.errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            if (state.phase == BackupPhase.COMPLETED) Text("操作完成", style = MaterialTheme.typography.titleMedium)
+            if (state.phase == BackupPhase.COMPLETED) {
+                Text("操作完成", style = MaterialTheme.typography.titleMedium)
+            }
             if (state.restoreProtected || state.summary.inserted + state.summary.existing > 0) {
-                val result = state.summary
-                Text("新增 ${result.inserted}，已存在 ${result.existing}，失败 ${result.failed}，未处理 ${result.remaining}\n出站转失败 ${result.convertedOutgoing}，关联跳过 ${result.skippedAssociations}")
-                if (result.completedSections.isNotEmpty()) Text("已完成：${result.completedSections.joinToString { it.label }}")
-                if (!state.busy) {
-                    Button(onClick = { finishConfirm = true }) { Text("确认结果并结束恢复保护") }
-                    if (preview == null) {
-                        OutlinedTextField(value = password, onValueChange = { password = it }, label = { Text("密码（恢复加密文件时也在此输入）") },
-                            visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
-                        OutlinedButton(onClick = { open.launch(arrayOf("*/*")) }) { Text("重新选择文件并预览恢复") }
+                BackupTaskCard(title = "恢复结果", cornerRadius = 28.dp) {
+                    BackupResultDetails(state.summary)
+                    if (!state.busy) {
+                        Button(onClick = { finishConfirm = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text("确认结果并结束恢复保护")
+                        }
+                        if (preview == null) {
+                            BackupPasswordField(password = password, onPasswordChange = { password = it })
+                            OutlinedButton(onClick = { open.launch(arrayOf("*/*")) }, modifier = Modifier.fillMaxWidth()) {
+                                Text("重新选择文件并预览恢复")
+                            }
+                        }
                     }
                 }
             }
