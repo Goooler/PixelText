@@ -122,6 +122,21 @@ import vip.mystery0.pixel.text.viewmodel.SmsSyncState
 import java.util.Locale
 import kotlin.time.Duration.Companion.milliseconds
 
+private enum class AdvancedDataAction(val title: String, val description: String) {
+    SyncSms(
+        "强制同步短信数据",
+        "将重新读取系统短信和彩信，并刷新本地会话缓存。短信较多时可能耗时较长，是否确认执行？",
+    ),
+    RecognizeSms(
+        "重新识别全部短信",
+        "将按照当前识别规则重新扫描全部短信，并刷新验证码索引。短信较多时可能耗时较长，是否确认执行？",
+    ),
+    RefreshSmartspacer(
+        "刷新 Smartspacer 数据",
+        "将触发 Smartspacer 重新计算未读数量和快捷卡片。此操作可能需要一段时间，是否确认执行？",
+    ),
+}
+
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel = koinViewModel(),
@@ -151,6 +166,7 @@ fun SettingsScreen(
     var permissionRefreshKey by remember { mutableIntStateOf(0) }
     var pendingPermissionRequest by remember { mutableStateOf<List<String>>(emptyList()) }
     var pendingPermissionDialogItem by remember { mutableStateOf<PermissionItem?>(null) }
+    var pendingAdvancedDataAction by remember { mutableStateOf<AdvancedDataAction?>(null) }
     var showSpamAutoActionDialog by remember { mutableStateOf(false) }
     var showMessageTimeFormatDialog by remember { mutableStateOf(false) }
     var showResourceAutoCheckIntervalDialog by remember { mutableStateOf(false) }
@@ -736,7 +752,9 @@ fun SettingsScreen(
                                 icon = {
                                     Icon(Icons.Rounded.Sync, contentDescription = null)
                                 },
-                                onClick = viewModel::forceSyncSmsData
+                                onClick = {
+                                    pendingAdvancedDataAction = AdvancedDataAction.SyncSms
+                                }
                             )
                         }
                         item(key = "rebuild_verification_code_index", contentType = "Preference") {
@@ -756,12 +774,7 @@ fun SettingsScreen(
                                     Icon(Icons.AutoMirrored.Rounded.Rule, contentDescription = null)
                                 },
                                 onClick = {
-                                    viewModel.rebuildVerificationCodeIndex()
-                                    Toast.makeText(
-                                        context,
-                                        "已安排重新识别全部短信",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
+                                    pendingAdvancedDataAction = AdvancedDataAction.RecognizeSms
                                 }
                             )
                         }
@@ -775,12 +788,7 @@ fun SettingsScreen(
                                     Icon(Icons.Rounded.DashboardCustomize, contentDescription = null)
                                 },
                                 onClick = {
-                                    SmartspacerIntegration.notifyChanged(context)
-                                    Toast.makeText(
-                                        context,
-                                        "已触发 Smartspacer 刷新",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
+                                    pendingAdvancedDataAction = AdvancedDataAction.RefreshSmartspacer
                                 }
                             )
                         }
@@ -905,6 +913,56 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+
+    pendingAdvancedDataAction?.let { action ->
+        val actionEnabled = when (action) {
+            AdvancedDataAction.SyncSms -> smsSyncEnabled
+            AdvancedDataAction.RecognizeSms -> !isVerificationCodeIndexRunning
+            AdvancedDataAction.RefreshSmartspacer -> true
+        }
+        AlertDialog(
+            onDismissRequest = { pendingAdvancedDataAction = null },
+            title = { Text(action.title) },
+            text = { Text(action.description) },
+            confirmButton = {
+                TextButton(
+                    enabled = actionEnabled,
+                    onClick = {
+                        if (pendingAdvancedDataAction != action || !actionEnabled) {
+                            return@TextButton
+                        }
+                        pendingAdvancedDataAction = null
+                        when (action) {
+                            AdvancedDataAction.SyncSms -> viewModel.forceSyncSmsData()
+                            AdvancedDataAction.RecognizeSms -> {
+                                viewModel.rebuildVerificationCodeIndex()
+                                Toast.makeText(
+                                    context,
+                                    "已安排重新识别全部短信",
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            }
+                            AdvancedDataAction.RefreshSmartspacer -> {
+                                SmartspacerIntegration.notifyChanged(context)
+                                Toast.makeText(
+                                    context,
+                                    "已触发 Smartspacer 刷新",
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            }
+                        }
+                    },
+                ) {
+                    Text("确认执行")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingAdvancedDataAction = null }) {
+                    Text("取消")
+                }
+            },
+        )
     }
 
     pendingPermissionDialogItem?.let { item ->
