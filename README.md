@@ -73,11 +73,33 @@ app/src/main/java/vip/mystery0/pixel/text/
 ./gradlew :app:lintDebug
 ```
 
-Release 构建需要本地签名配置：
+Release APK / AAB 构建：
 
 ```bash
 ./gradlew assembleRelease
+./gradlew bundleRelease
 ```
+
+### 签名配置
+
+签名由 [`signing.gradle`](signing.gradle) 读取，支持以下字段：
+
+| 字段 | 含义 |
+| --- | --- |
+| `SIGN_KEY_STORE_FILE` | keystore 文件路径 |
+| `SIGN_KEY_STORE_PASSWORD` | keystore 密码 |
+| `SIGN_KEY_ALIAS` | 签名密钥别名 |
+| `SIGN_KEY_PASSWORD` | 签名密钥密码 |
+
+每个字段优先读取仓库根目录的 `local.properties`，未配置或值为空时再读取同名环境变量。
+因此，只有 `sdk.dir` 的 `local.properties` 也可以与环境变量中的签名配置同时使用；本地同步和构建无需提供正式签名材料。
+
+解析后的 `SIGN_KEY_STORE_FILE` 为空时，Release 构建会回退到本机的 debug 签名，便于本地验证。
+配置了 keystore 路径时，应同时提供其余三个有效字段；此时不会因其他字段缺失而自动回退。
+正式发布必须使用完整、有效的正式签名配置，当前[发布工作流](.github/workflows/release.yml)通过环境变量注入。
+
+使用 debug 签名的 Release 包仍保留混淆、资源压缩和正式包名 `vip.mystery0.pixel.text`，无法直接覆盖安装到正式签名版本上。
+日常调试可使用包名带 `.debug` 后缀的 Debug 构建；签名不同的本地 Release 构建可在独立测试设备或模拟器中验证。
 
 ## 第三方来源与许可
 

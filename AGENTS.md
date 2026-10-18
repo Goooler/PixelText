@@ -42,8 +42,9 @@ Pixel Text（原点短信）是面向国内 Pixel 用户的 Android SMS/MMS 应�
 | Kotlin 编译 | `./gradlew.bat :app:compileDebugKotlin` |
 | 静态检查 | `./gradlew.bat :app:lintDebug` |
 | Debug APK | `./gradlew.bat :app:assembleDebug` |
-| Release APK / AAB（需要签名配置） | `./gradlew.bat :app:assembleRelease` / `./gradlew.bat :app:bundleRelease` |
+| Release APK / AAB | `./gradlew.bat :app:assembleRelease` / `./gradlew.bat :app:bundleRelease` |
 
+- Release 签名字段逐项优先读取 `local.properties`，缺失或空值时读取同名环境变量；解析后的 `SIGN_KEY_STORE_FILE` 为空时使用 debug 签名。正式发布仍需完整、有效的正式签名配置；字段和安装限制见 [README 的构建说明](README.md#构建)。
 - 本项目不做单元测试。除非用户在当前任务明确要求，不新增 `app/src/test/`、`app/src/androidTest/`、测试依赖，也不运行 `test`、`testDebugUnitTest` 等单元测试任务。
 - 根据改动选择编译、Lint、Mock 或真机验证；仅文档调整检查差异与引用即可。具体约定见[编码与验证规范](docs/development/coding-and-validation.md)，按改动范围读取相关章节。
 - 权限、默认短信角色、SIM、MMS 与通知操作需要真机确认；编译成功不能替代系统链路验证，没有设备时明确未验项。
