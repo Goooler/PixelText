@@ -54,7 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import me.zhanghai.compose.preference.Preference
+import vip.mystery0.pixel.text.ui.screen.settings.SettingsPreference as Preference
 import org.koin.androidx.compose.koinViewModel
 import vip.mystery0.pixel.text.R
 import vip.mystery0.pixel.text.domain.settings.AppDisplayName
@@ -80,6 +80,13 @@ fun AppIdentitySettingsPreference(
 fun currentAppDisplayName(viewModel: AppIdentityViewModel = koinViewModel()): String {
     val identity by viewModel.identity.collectAsStateWithLifecycle()
     return identity.displayName.label
+}
+
+/** 设置页和关于页复用当前真实桌面图标，不以默认图标覆盖用户选择。 */
+@Composable
+internal fun CurrentAppIdentityIcon(viewModel: AppIdentityViewModel = koinViewModel()) {
+    val identity by viewModel.identity.collectAsStateWithLifecycle()
+    AppIdentityIcon(identity.iconStyle, Modifier.size(32.dp))
 }
 
 @Composable

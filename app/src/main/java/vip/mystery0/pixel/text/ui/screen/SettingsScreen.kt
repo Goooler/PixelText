@@ -1,5 +1,14 @@
 package vip.mystery0.pixel.text.ui.screen
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import vip.mystery0.pixel.text.ui.screen.settings.SettingsCategory
+import vip.mystery0.pixel.text.ui.screen.settings.SettingsEntry
+import vip.mystery0.pixel.text.ui.screen.settings.SettingsSection
+import vip.mystery0.pixel.text.ui.screen.settings.SettingsPage
+import vip.mystery0.pixel.text.viewmodel.BackupViewModel
+import vip.mystery0.pixel.text.viewmodel.SenderWhitelistViewModel
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -19,19 +28,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.windowInsetsBottomHeight
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -39,20 +43,24 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Rule
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.DashboardCustomize
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material.icons.rounded.FilterAlt
-import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.SwapHoriz
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.VerifiedUser
+import androidx.compose.material.icons.rounded.Update
+import androidx.compose.material.icons.rounded.Phone
+import androidx.compose.material.icons.rounded.Sms
+import androidx.compose.material.icons.rounded.Contacts
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Shield
@@ -78,14 +86,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -95,13 +103,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.net.toUri
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import me.zhanghai.compose.preference.Preference
-import me.zhanghai.compose.preference.ProvidePreferenceTheme
-import me.zhanghai.compose.preference.SwitchPreference
-import me.zhanghai.compose.preference.preferenceCategory
+import vip.mystery0.pixel.text.ui.screen.settings.SettingsPreference as Preference
+import vip.mystery0.pixel.text.ui.screen.settings.SettingsSwitchPreference as SwitchPreference
 import org.koin.androidx.compose.koinViewModel
 import vip.mystery0.pixel.text.BuildConfig
 import vip.mystery0.pixel.text.R
@@ -141,6 +148,8 @@ private enum class AdvancedDataAction(val title: String, val description: String
 fun SettingsScreen(
     viewModel: SettingsViewModel = koinViewModel(),
     keywordSpamViewModel: KeywordSpamViewModel = koinViewModel(),
+    backupViewModel: BackupViewModel = koinViewModel(),
+    whitelistViewModel: SenderWhitelistViewModel = koinViewModel(),
     onNavigateBack: () -> Unit,
     onNavigateToSampleSubmission: () -> Unit = {},
     onNavigateToSwipeActions: () -> Unit = {},
@@ -156,6 +165,19 @@ fun SettingsScreen(
     onResourceUpdateCheckRequestConsumed: () -> Unit = {},
 ) {
     val context = LocalContext.current
+    val backupState by backupViewModel.state.collectAsState()
+    val whitelistRules by whitelistViewModel.rules.collectAsState()
+    val currentDisplayName = currentAppDisplayName()
+    var selectedCategory by rememberSaveable { mutableStateOf<SettingsCategory?>(null) }
+    var returnCategory by rememberSaveable { mutableStateOf<SettingsCategory?>(null) }
+    var targetSection by rememberSaveable { mutableStateOf<String?>(null) }
+    fun navigateBack() {
+        if (selectedCategory != null) {
+            selectedCategory = returnCategory
+            returnCategory = null
+            targetSection = null
+        } else onNavigateBack()
+    }
     val settings by viewModel.settings.collectAsState()
     val blockedKeywords by keywordSpamViewModel.keywords.collectAsState()
     val resourceUpdateState by viewModel.resourceUpdateState.collectAsState()
@@ -168,6 +190,7 @@ fun SettingsScreen(
     var pendingPermissionRequest by remember { mutableStateOf<List<String>>(emptyList()) }
     var pendingPermissionDialogItem by remember { mutableStateOf<PermissionItem?>(null) }
     var pendingAdvancedDataAction by remember { mutableStateOf<AdvancedDataAction?>(null) }
+    var confirmSpamDeletion by remember { mutableStateOf(false) }
     var showSpamAutoActionDialog by remember { mutableStateOf(false) }
     var showMessageTimeFormatDialog by remember { mutableStateOf(false) }
     var showResourceAutoCheckIntervalDialog by remember { mutableStateOf(false) }
@@ -186,6 +209,7 @@ fun SettingsScreen(
     val defaultSmsAppLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
         onResult = {
+            permissionRefreshKey++
             val permissions = pendingPermissionRequest
             pendingPermissionRequest = emptyList()
             if (permissions.isNotEmpty()) {
@@ -196,8 +220,15 @@ fun SettingsScreen(
     val permissionItems = remember(context, permissionRefreshKey) {
         buildPermissionItems(context)
     }
+    val defaultSmsApp = remember(permissionRefreshKey) { context.isDefaultSmsApp() }
+    val notificationGranted = permissionItems.firstOrNull { it.key == "notifications" }?.granted != false
+    var showDebugResourceActions by remember { mutableStateOf(isDebugModeEnabled()) }
+    LifecycleResumeEffect(Unit) {
+        permissionRefreshKey++
+        showDebugResourceActions = isDebugModeEnabled()
+        onPauseOrDispose { }
+    }
     var versionCodeTapCount by remember { mutableIntStateOf(0) }
-    val showDebugResourceActions = isDebugModeEnabled()
     val resourceUpdateSummary = when (val state = resourceUpdateState) {
         ResourceUpdateState.Idle -> "手动检查规则和模型资源更新"
         ResourceUpdateState.Checking -> "手动检查规则和模型资源更新"
@@ -216,6 +247,9 @@ fun SettingsScreen(
 
     LaunchedEffect(resourceUpdateCheckRequestId) {
         if (resourceUpdateCheckRequestId != null) {
+            selectedCategory = SettingsCategory.RESOURCES
+            returnCategory = null
+            targetSection = null
             viewModel.checkResourceUpdates()
             onResourceUpdateCheckRequestConsumed()
         }
@@ -231,692 +265,691 @@ fun SettingsScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "Back"
-                        )
-                    }
-                },
-                title = {
-                    Text(
-                        "设置",
-                        style = MaterialTheme.typography.titleLarge
+    val sections = when (selectedCategory) {
+        SettingsCategory.MESSAGES -> buildList {
+            add(SettingsSection("message_cards", "短信卡片", listOf(
+                SettingsEntry("smart_card") {
+                    SwitchPreference(
+                        value = settings.smartCardEnabled,
+                        onValueChange = viewModel::setSmartCardEnabled,
+                        title = { Text("智能短信卡片") },
+                        summary = {
+                            Text("在会话详情中将验证码、票务、动账等短信渲染为结构化卡片")
+                        },
+                        icon = {
+                            Icon(
+                                Icons.Rounded.DashboardCustomize,
+                                contentDescription = null
+                            )
+                        }
                     )
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
-            )
-        },
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0.dp),
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .consumeWindowInsets(paddingValues)
-        ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                ProvidePreferenceTheme {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(
-                            top = paddingValues.calculateTopPadding(),
-                            bottom = 24.dp
-                        )
-                    ) {
-                        preferenceCategory(
-                            key = "category_model_rule",
-                            title = { Text("模型与规则") }
-                        )
-                        item(key = "offline_model_version", contentType = "Preference") {
-                            Preference(
-                                title = { Text("离线模型版本") },
-                                summary = {
-                                    Text(
-                                        viewModel.displaySpamModelResourceVersion(
-                                            settings.spamModelResourceVersion
-                                        )
-                                    )
-                                },
-                                icon = {
-                                    Icon(Icons.Rounded.Memory, contentDescription = null)
+                SettingsEntry("show_verification_code_content_by_default") {
+                    SwitchPreference(
+                        value = settings.showVerificationCodeContentByDefault,
+                        onValueChange =
+                            viewModel::setShowVerificationCodeContentByDefault,
+                        title = { Text("验证码默认显示原文") },
+                        summary = { Text("开启智能短信卡片时，在验证码下方显示完整短信内容") },
+                        icon = {
+                            Icon(Icons.Rounded.Visibility, contentDescription = null)
+                        },
+                    )
+                },
+            )))
+            add(SettingsSection("message_codes", "验证码管理", listOf(
+                SettingsEntry("verification_code_auto_delete") {
+                    SwitchPreference(
+                        value = settings.verificationCodeAutoDeleteEnabled,
+                        onValueChange = viewModel::setVerificationCodeAutoDeleteEnabled,
+                        title = { Text("自动删除验证码") },
+                        summary = { Text("定期删除超过保留期限的验证码短信") },
+                        icon = {
+                            Icon(Icons.Rounded.DeleteSweep, contentDescription = null)
+                        },
+                    )
+                },
+                SettingsEntry("verification_code_retention_days") {
+                    Preference(
+                        enabled = settings.verificationCodeAutoDeleteEnabled,
+                        title = { Text("验证码保留时间") },
+                        summary = {
+                            Text(if (settings.verificationCodeAutoDeleteEnabled) "${settings.verificationCodeRetentionDays} 天" else "${settings.verificationCodeRetentionDays} 天 · 开启自动删除后生效")
+                        },
+                        icon = {
+                            Icon(Icons.Rounded.Schedule, contentDescription = null)
+                        },
+                        onClick = {
+                            verificationCodeRetentionDaysInput =
+                                settings.verificationCodeRetentionDays.toString()
+                            verificationCodeRetentionDaysError = null
+                            showVerificationCodeRetentionDaysDialog = true
+                        },
+                    )
+                },
+                SettingsEntry("notification_link") {
+                    Preference(
+                        title = { Text("验证码通知与锁屏隐私") },
+                        summary = { Text(if (!settings.verificationCodeNotificationActionEnabled) "快捷复制已关闭" else if (settings.hideVerificationCodeOnLockScreenEnabled) "快捷复制已开启 · 锁屏时隐藏" else "快捷复制已开启 · 锁屏时显示") },
+                        icon = { Icon(Icons.Rounded.Lock, null) },
+                        onClick = {
+                            returnCategory = SettingsCategory.MESSAGES
+                            selectedCategory = SettingsCategory.DISPLAY
+                            targetSection = "display_notifications"
+                        },
+                    )
+                },
+            )))
+            add(SettingsSection("message_mms", "彩信", listOf(
+                SettingsEntry("auto_download_mms") {
+                    SwitchPreference(
+                        value = settings.autoDownloadMms,
+                        onValueChange = viewModel::setAutoDownloadMms,
+                        title = { Text("自动下载彩信") },
+                        icon = { Icon(Icons.Rounded.Image, null) },
+                        summary = { Text("开启后自动下载新收到的彩信，可能使用移动数据") },
+                    )
+                },
+            )))
+        }
+        SettingsCategory.DISPLAY -> buildList {
+            add(SettingsSection("display_app", "应用与主界面", listOf(
+                SettingsEntry("app_identity") {
+                    AppIdentitySettingsPreference(onClick = onNavigateToAppIdentity)
+                },
+                SettingsEntry("unread_badge") {
+                    SwitchPreference(
+                        value = settings.unreadBadgeEnabled,
+                        onValueChange = viewModel::setUnreadBadgeEnabled,
+                        title = { Text("底部未读数量") },
+                        summary = { Text("在底部会话按钮显示未读短信数量") },
+                        icon = {
+                            Icon(Icons.Rounded.Notifications, contentDescription = null)
+                        },
+                    )
+                },
+            )))
+            add(SettingsSection("display_conversations", "会话列表与详情", listOf(
+                SettingsEntry("conversation_detail_customization") {
+                    Preference(
+                        title = { Text("会话详情显示") },
+                        summary = { Text("气泡、背景、输入区域与 SIM 信息") },
+                        icon = {
+                            Icon(Icons.Rounded.Palette, contentDescription = null)
+                        },
+                        onClick = onNavigateToConversationDetailCustomization,
+                    )
+                },
+                SettingsEntry("message_time_display_format") {
+                    Preference(
+                        title = { Text("短信时间显示格式") },
+                        summary = {
+                            Text(settings.messageTimeDisplayFormat.title())
+                        },
+                        icon = {
+                            Icon(Icons.Rounded.Schedule, contentDescription = null)
+                        },
+                        onClick = { showMessageTimeFormatDialog = true }
+                    )
+                },
+                SettingsEntry("conversation_swipe_actions") {
+                    Preference(
+                        title = { Text("滑动操作") },
+                        summary = {
+                            Text(
+                                "右滑：${settings.rightSwipeAction.settingTitle()}；" +
+                                        "左滑：${settings.leftSwipeAction.settingTitle()}"
+                            )
+                        },
+                        icon = {
+                            Icon(Icons.Rounded.SwapHoriz, contentDescription = null)
+                        },
+                        onClick = onNavigateToSwipeActions
+                    )
+                },
+            )))
+            add(SettingsSection("display_notifications", "短信通知", listOf(
+                SettingsEntry("sms_notification_icon") {
+                    Preference(
+                        title = { Text("短信通知图标") },
+                        summary = {
+                            Text(
+                                SmsNotificationIcon.fromId(
+                                    settings.smsNotificationIconId
+                                ).displayName
+                            )
+                        },
+                        icon = {
+                            Icon(
+                                painter = painterResource(
+                                    SmsNotificationIcon.fromId(
+                                        settings.smsNotificationIconId
+                                    ).drawableRes
+                                ),
+                                contentDescription = null
+                            )
+                        },
+                        onClick = onNavigateToSmsNotificationIcons
+                    )
+                },
+                SettingsEntry("notification_quick_actions") {
+                    Preference(
+                        title = { Text("通知快捷操作") },
+                        summary = {
+                            Text(settings.notificationQuickActionConfigs.settingsSummary())
+                        },
+                        icon = {
+                            Icon(Icons.Rounded.Forum, contentDescription = null)
+                        },
+                        onClick = onNavigateToNotificationActions
+                    )
+                },
+                SettingsEntry("verification_code_notification_action") {
+                    SwitchPreference(
+                        value = settings.verificationCodeNotificationActionEnabled,
+                        onValueChange =
+                            viewModel::setVerificationCodeNotificationActionEnabled,
+                        title = { Text("验证码通知快捷复制") },
+                        summary = {
+                            Text("在通知中显示验证码复制按钮")
+                        },
+                        icon = {
+                            Icon(Icons.Rounded.ContentCopy, contentDescription = null)
+                        }
+                    )
+                },
+                SettingsEntry("hide_verification_code_on_lock_screen") {
+                    SwitchPreference(
+                        value = settings.hideVerificationCodeOnLockScreenEnabled,
+                        onValueChange =
+                            viewModel::setHideVerificationCodeOnLockScreenEnabled,
+                        title = { Text("锁屏时隐藏验证码") },
+                        summary = {
+                            Text(if (settings.verificationCodeNotificationActionEnabled) "锁屏通知中隐藏验证码内容和复制操作" else "需要先开启验证码通知快捷复制")
+                        },
+                        enabled = settings.verificationCodeNotificationActionEnabled,
+                        icon = {
+                            Icon(Icons.Rounded.Lock, contentDescription = null)
+                        }
+                    )
+                },
+            )))
+        }
+        SettingsCategory.SPAM -> buildList {
+            add(SettingsSection("spam_rules", "识别规则", listOf(
+                SettingsEntry("spam_detection") {
+                    SwitchPreference(
+                        value = settings.spamDetectionEnabled,
+                        onValueChange = viewModel::setSpamDetectionEnabled,
+                        title = { Text("本地模型识别") },
+                        summary = {
+                            Text("控制本地模型识别；自定义关键词规则不受此开关影响")
+                        },
+                        icon = {
+                            Icon(Icons.Rounded.Shield, contentDescription = null)
+                        }
+                    )
+                },
+                SettingsEntry("keyword_spam") {
+                    Preference(
+                        title = { Text("关键词拦截") },
+                        summary = {
+                            Text(
+                                if (blockedKeywords.isEmpty()) {
+                                    "添加只保存在设备本地的短信正文关键词"
+                                } else {
+                                    "已添加 ${blockedKeywords.size} 个关键词"
                                 }
                             )
+                        },
+                        icon = {
+                            Icon(Icons.Rounded.FilterAlt, contentDescription = null)
+                        },
+                        onClick = onNavigateToKeywordSpam,
+                    )
+                },
+                SettingsEntry("sender_whitelist") {
+                    Preference(
+                        title = { Text("号码白名单") },
+                        summary = { Text("${whitelistRules.size} 条规则；命中号码优先放行，不受模型或关键词拦截") },
+                        icon = { Icon(Icons.Rounded.VerifiedUser, contentDescription = null) },
+                        onClick = onNavigateToSenderWhitelist,
+                    )
+                },
+            )))
+            add(SettingsSection("spam_actions", "处理方式", listOf(
+                SettingsEntry("mute_spam_notifications") {
+                    SwitchPreference(
+                        value = settings.muteSpamNotificationsEnabled,
+                        onValueChange = viewModel::setMuteSpamNotificationsEnabled,
+                        title = { Text("骚扰短信不提醒") },
+                        summary = {
+                            Text("模型或关键词识别为骚扰时，不显示通知且不做提醒")
+                        },
+                        icon = {
+                            Icon(Icons.Rounded.NotificationsOff, contentDescription = null)
                         }
-                        item(key = "smart_card_rule_version", contentType = "Preference") {
-                            Preference(
-                                title = { Text("智能卡片规则版本") },
-                                summary = {
-                                    Text(
-                                        viewModel.displayRuleResourceVersion(
-                                            settings.ruleResourceVersion
-                                        )
-                                    )
-                                },
-                                icon = {
-                                    Icon(Icons.AutoMirrored.Rounded.Rule, contentDescription = null)
+                    )
+                },
+                SettingsEntry("spam_auto_action") {
+                    Preference(
+                        title = { Text("收到骚扰短信后") },
+                        summary = {
+                            Text(
+                                if (spamAutoActionEnabled) {
+                                    settings.spamAutoAction.preferenceSummary()
+                                } else {
+                                    "需要先开启骚扰短信不提醒"
                                 }
                             )
-                        }
-                        item(key = "resource_update", contentType = "Preference") {
-                            Preference(
-                                title = { Text("检查资源更新") },
-                                summary = { Text(resourceUpdateSummary) },
-                                enabled = resourceUpdateEnabled,
-                                icon = {
-                                    Icon(Icons.Rounded.Sync, contentDescription = null)
-                                },
-                                onClick = viewModel::checkResourceUpdates
-                            )
-                        }
-                        item(
-                            key = "resource_auto_check",
-                            contentType = "SwitchPreference"
-                        ) {
-                            SwitchPreference(
-                                value = settings.resourceAutoCheckEnabled,
-                                onValueChange = viewModel::setResourceAutoCheckEnabled,
-                                title = { Text("自动检查资源更新") },
-                                summary = {
-                                    Text("定期获取资源清单，有更新时通知你，不会自动下载")
-                                },
-                                icon = {
-                                    Icon(Icons.Rounded.Sync, contentDescription = null)
-                                }
-                            )
-                        }
-                        item(
-                            key = "resource_auto_check_interval",
-                            contentType = "Preference"
-                        ) {
-                            Preference(
-                                title = { Text("检查间隔时间") },
-                                summary = {
-                                    Text("每 ${settings.resourceAutoCheckIntervalHours} 小时检查一次")
-                                },
-                                enabled = settings.resourceAutoCheckEnabled,
-                                icon = {
-                                    Icon(Icons.Rounded.Schedule, contentDescription = null)
-                                },
-                                onClick = {
-                                    resourceAutoCheckIntervalInput =
-                                        settings.resourceAutoCheckIntervalHours.toString()
-                                    resourceAutoCheckIntervalError = null
-                                    showResourceAutoCheckIntervalDialog = true
-                                }
-                            )
-                        }
-                        preferenceCategory(
-                            key = "category_sender_profiles",
-                            title = { Text("发件方资料") }
-                        )
-                        item(key = "sender_profile_update", contentType = "Preference") {
-                            Preference(
-                                title = { Text("发件方名称与头像") },
-                                summary = {
-                                    Text(
-                                        senderProfileVersion?.let { "当前版本：$it，点按检查更新" }
-                                            ?: "未安装发件方资料，点按检查更新"
-                                    )
-                                },
-                                enabled = senderProfileUpdateState !is SenderProfileUpdateState.Busy,
-                                icon = { Icon(Icons.Rounded.Badge, contentDescription = null) },
-                                onClick = viewModel::checkSenderProfileUpdates,
-                            )
-                        }
-                        preferenceCategory(
-                            key = "category_contribution",
-                            title = { Text("数据贡献") }
-                        )
-                        item(key = "sample_submission", contentType = "Preference") {
-                            Preference(
-                                title = { Text("上报脱敏短信样本") },
-                                summary = {
-                                    Text("手动提交已脱敏的短信样本，也可在短信详情页长按单条短信后快速带入")
-                                },
-                                icon = {
-                                    Icon(Icons.Rounded.UploadFile, contentDescription = null)
-                                },
-                                onClick = onNavigateToSampleSubmission
-                            )
-                        }
-                        preferenceCategory(
-                            key = "category_display",
-                            title = { Text("显示与外观") },
-                        )
-                        item(key = "app_identity", contentType = "Preference") {
-                            AppIdentitySettingsPreference(onClick = onNavigateToAppIdentity)
-                        }
-                        item(
-                            key = "sms_notification_icon",
-                            contentType = "Preference"
-                        ) {
-                            Preference(
-                                title = { Text("短信通知图标") },
-                                summary = {
-                                    Text(
-                                        SmsNotificationIcon.fromId(
-                                            settings.smsNotificationIconId
-                                        ).displayName
-                                    )
-                                },
-                                icon = {
-                                    Icon(
-                                        painter = painterResource(
-                                            SmsNotificationIcon.fromId(
-                                                settings.smsNotificationIconId
-                                            ).drawableRes
-                                        ),
-                                        contentDescription = null
-                                    )
-                                },
-                                onClick = onNavigateToSmsNotificationIcons
-                            )
-                        }
-                        item(key = "conversation_detail_customization", contentType = "Preference") {
-                            Preference(
-                                title = { Text("会话详情显示") },
-                                summary = { Text("自定义消息气泡、输入区域、背景图片和 SIM 信息") },
-                                icon = {
-                                    Icon(Icons.Rounded.Palette, contentDescription = null)
-                                },
-                                onClick = onNavigateToConversationDetailCustomization,
-                            )
-                        }
-                        item(key = "message_time_display_format", contentType = "Preference") {
-                            Preference(
-                                title = { Text("短信时间显示格式") },
-                                summary = {
-                                    Text(settings.messageTimeDisplayFormat.preferenceSummary())
-                                },
-                                icon = {
-                                    Icon(Icons.Rounded.Schedule, contentDescription = null)
-                                },
-                                onClick = { showMessageTimeFormatDialog = true }
-                            )
-                        }
-                        item(key = "conversation_swipe_actions", contentType = "Preference") {
-                            Preference(
-                                title = { Text("滑动操作") },
-                                summary = {
-                                    Text(
-                                        "向右滑动：${settings.rightSwipeAction.settingTitle()}；" +
-                                                "向左滑动：${settings.leftSwipeAction.settingTitle()}"
-                                    )
-                                },
-                                icon = {
-                                    Icon(Icons.Rounded.PlayArrow, contentDescription = null)
-                                },
-                                onClick = onNavigateToSwipeActions
-                            )
-                        }
-                        item(
-                            key = "notification_quick_actions",
-                            contentType = "Preference"
-                        ) {
-                            Preference(
-                                title = { Text("通知快捷操作") },
-                                summary = {
-                                    Text(settings.notificationQuickActionConfigs.settingsSummary())
-                                },
-                                icon = {
-                                    Icon(Icons.Rounded.Forum, contentDescription = null)
-                                },
-                                onClick = onNavigateToNotificationActions
-                            )
-                        }
-                        item(
-                            key = "verification_code_notification_action",
-                            contentType = "SwitchPreference"
-                        ) {
-                            SwitchPreference(
-                                value = settings.verificationCodeNotificationActionEnabled,
-                                onValueChange =
-                                    viewModel::setVerificationCodeNotificationActionEnabled,
-                                title = { Text("验证码通知快捷复制") },
-                                summary = {
-                                    Text("验证码短信通知中显示复制验证码操作")
-                                },
-                                icon = {
-                                    Icon(Icons.Rounded.ContentCopy, contentDescription = null)
-                                }
-                            )
-                        }
-                        preferenceCategory(
-                            key = "category_app_features",
-                            title = { Text("应用功能") }
-                        )
-                        item(key = "auto_download_mms", contentType = "SwitchPreference") {
-                            SwitchPreference(
-                                value = settings.autoDownloadMms,
-                                onValueChange = viewModel::setAutoDownloadMms,
-                                title = { Text("自动下载彩信") },
-                                summary = { Text("开启后自动下载新收到的彩信，可能使用移动数据") },
-                            )
-                        }
-                        item(key = "spam_detection", contentType = "SwitchPreference") {
-                            SwitchPreference(
-                                value = settings.spamDetectionEnabled,
-                                onValueChange = viewModel::setSpamDetectionEnabled,
-                                title = { Text("骚扰短信识别") },
-                                summary = {
-                                    Text("控制本地模型识别；自定义关键词规则不受此开关影响")
-                                },
-                                icon = {
-                                    Icon(Icons.Rounded.Shield, contentDescription = null)
-                                }
-                            )
-                        }
-                        item(key = "sender_whitelist", contentType = "Preference") {
-                            Preference(
-                                title = { Text("骚扰识别白名单") },
-                                summary = { Text("指定号码或正则规则，命中消息始终按非骚扰处理") },
-                                icon = { Icon(Icons.Rounded.Shield, contentDescription = null) },
-                                onClick = onNavigateToSenderWhitelist,
-                            )
-                        }
-                        item(key = "keyword_spam", contentType = "Preference") {
-                            Preference(
-                                title = { Text("关键词拦截") },
-                                summary = {
-                                    Text(
-                                        if (blockedKeywords.isEmpty()) {
-                                            "添加只保存在设备本地的短信正文关键词"
-                                        } else {
-                                            "已添加 ${blockedKeywords.size} 个关键词"
-                                        }
-                                    )
-                                },
-                                icon = {
-                                    Icon(Icons.Rounded.FilterAlt, contentDescription = null)
-                                },
-                                onClick = onNavigateToKeywordSpam,
-                            )
-                        }
-                        item(
-                            key = "mute_spam_notifications",
-                            contentType = "SwitchPreference"
-                        ) {
-                            SwitchPreference(
-                                value = settings.muteSpamNotificationsEnabled,
-                                onValueChange = viewModel::setMuteSpamNotificationsEnabled,
-                                title = { Text("骚扰短信不提醒") },
-                                summary = {
-                                    Text("模型或关键词识别为骚扰时，不显示通知且不做提醒")
-                                },
-                                icon = {
-                                    Icon(Icons.Rounded.NotificationsOff, contentDescription = null)
-                                }
-                            )
-                        }
-                        item(key = "spam_auto_action", contentType = "Preference") {
-                            Preference(
-                                title = { Text("骚扰短信自动执行") },
-                                summary = {
-                                    Text(
-                                        if (spamAutoActionEnabled) {
-                                            settings.spamAutoAction.preferenceSummary()
-                                        } else {
-                                            "需要先开启骚扰短信不提醒"
-                                        }
-                                    )
-                                },
-                                enabled = spamAutoActionEnabled,
-                                icon = {
-                                    Icon(Icons.Rounded.PlayArrow, contentDescription = null)
-                                },
-                                onClick = {
-                                    if (spamAutoActionEnabled) {
-                                        showSpamAutoActionDialog = true
-                                    }
-                                }
-                            )
-                        }
-                        item(
-                            key = "spam_isolation",
-                            contentType = "SwitchPreference"
-                        ) {
-                            SwitchPreference(
-                                value = settings.spamIsolationEnabled,
-                                onValueChange = viewModel::setSpamIsolationEnabled,
-                                title = { Text("隔离显示骚扰短信") },
-                                summary = {
-                                    Text("开启后，普通会话与骚扰会话分别只显示对应类型的短信")
-                                },
-                                icon = {
-                                    Icon(Icons.Rounded.VisibilityOff, contentDescription = null)
-                                }
-                            )
-                        }
-                        item(
-                            key = "show_spam_content_by_default",
-                            contentType = "SwitchPreference"
-                        ) {
-                            SwitchPreference(
-                                value = settings.showSpamContentByDefault,
-                                onValueChange = viewModel::setShowSpamContentByDefault,
-                                title = { Text("骚扰短信默认显示全文") },
-                                summary = {
-                                    Text("开启后仍保留骚扰标识，但不再默认隐藏短信内容")
-                                },
-                                icon = {
-                                    Icon(Icons.Rounded.Visibility, contentDescription = null)
-                                }
-                            )
-                        }
-                        item(key = "smart_card", contentType = "SwitchPreference") {
-                            SwitchPreference(
-                                value = settings.smartCardEnabled,
-                                onValueChange = viewModel::setSmartCardEnabled,
-                                title = { Text("智能短信卡片") },
-                                summary = {
-                                    Text("在会话详情中将验证码、票务、动账等短信渲染为结构化卡片")
-                                },
-                                icon = {
-                                    Icon(
-                                        Icons.Rounded.DashboardCustomize,
-                                        contentDescription = null
-                                    )
-                                }
-                            )
-                        }
-                        item(
-                            key = "hide_verification_code_on_lock_screen",
-                            contentType = "SwitchPreference"
-                        ) {
-                            SwitchPreference(
-                                value = settings.hideVerificationCodeOnLockScreenEnabled,
-                                onValueChange =
-                                    viewModel::setHideVerificationCodeOnLockScreenEnabled,
-                                title = { Text("锁屏时隐藏验证码") },
-                                summary = {
-                                    Text("锁屏通知中隐藏验证码内容，并暂不显示复制验证码操作")
-                                },
-                                enabled = settings.verificationCodeNotificationActionEnabled,
-                                icon = {
-                                    Icon(Icons.Rounded.Lock, contentDescription = null)
-                                }
-                            )
-                        }
-                        item(
-                            key = "show_verification_code_content_by_default",
-                            contentType = "SwitchPreference",
-                        ) {
-                            SwitchPreference(
-                                value = settings.showVerificationCodeContentByDefault,
-                                onValueChange =
-                                    viewModel::setShowVerificationCodeContentByDefault,
-                                title = { Text("验证码默认显示原文") },
-                                summary = { Text("在验证码下方显示完整短信内容") },
-                                icon = {
-                                    Icon(Icons.Rounded.Visibility, contentDescription = null)
-                                },
-                            )
-                        }
-                        item(
-                            key = "verification_code_auto_delete",
-                            contentType = "SwitchPreference",
-                        ) {
-                            SwitchPreference(
-                                value = settings.verificationCodeAutoDeleteEnabled,
-                                onValueChange = viewModel::setVerificationCodeAutoDeleteEnabled,
-                                title = { Text("自动删除验证码") },
-                                summary = { Text("定期删除超过保留期限的验证码短信") },
-                                icon = {
-                                    Icon(Icons.Rounded.DeleteSweep, contentDescription = null)
-                                },
-                            )
-                        }
-                        item(
-                            key = "unread_badge",
-                            contentType = "SwitchPreference",
-                        ) {
-                            SwitchPreference(
-                                value = settings.unreadBadgeEnabled,
-                                onValueChange = viewModel::setUnreadBadgeEnabled,
-                                title = { Text("未读红点提醒") },
-                                summary = { Text("在底部会话按钮显示未读短信数量") },
-                                icon = {
-                                    Icon(Icons.Rounded.Notifications, contentDescription = null)
-                                },
-                            )
-                        }
-                        if (settings.verificationCodeAutoDeleteEnabled) {
-                            item(
-                                key = "verification_code_retention_days",
-                                contentType = "Preference",
-                            ) {
-                                Preference(
-                                    title = { Text("验证码保留时间") },
-                                    summary = {
-                                        Text("${settings.verificationCodeRetentionDays} 天")
-                                    },
-                                    icon = {
-                                        Icon(Icons.Rounded.Schedule, contentDescription = null)
-                                    },
-                                    onClick = {
-                                        verificationCodeRetentionDaysInput =
-                                            settings.verificationCodeRetentionDays.toString()
-                                        verificationCodeRetentionDaysError = null
-                                        showVerificationCodeRetentionDaysDialog = true
-                                    },
-                                )
+                        },
+                        enabled = spamAutoActionEnabled,
+                        icon = {
+                            Icon(Icons.Rounded.PlayArrow, contentDescription = null)
+                        },
+                        onClick = {
+                            if (spamAutoActionEnabled) {
+                                showSpamAutoActionDialog = true
                             }
                         }
-
-                        preferenceCategory(
-                            key = "category_permissions",
-                            title = { Text("权限申请") }
-                        )
-                        permissionItems.forEach { permissionItem ->
-                            item(
-                                key = "permission_${permissionItem.key}",
-                                contentType = "Preference"
-                            ) {
-                                PermissionPreference(
-                                    item = permissionItem,
-                                    onRequest = {
-                                        pendingPermissionDialogItem = permissionItem
-                                    }
-                                )
+                    )
+                },
+            )))
+            add(SettingsSection("spam_display", "内容显示", listOf(
+                SettingsEntry("spam_isolation") {
+                    SwitchPreference(
+                        value = settings.spamIsolationEnabled,
+                        onValueChange = viewModel::setSpamIsolationEnabled,
+                        title = { Text("单独显示骚扰短信") },
+                        summary = {
+                            Text("开启后，普通会话与骚扰会话分别只显示对应类型的短信")
+                        },
+                        icon = {
+                            Icon(Icons.Rounded.VisibilityOff, contentDescription = null)
+                        }
+                    )
+                },
+                SettingsEntry("show_spam_content_by_default") {
+                    SwitchPreference(
+                        value = settings.showSpamContentByDefault,
+                        onValueChange = viewModel::setShowSpamContentByDefault,
+                        title = { Text("默认展开骚扰短信") },
+                        summary = {
+                            Text("开启后仍保留骚扰标识，但不再默认隐藏短信内容")
+                        },
+                        icon = {
+                            Icon(Icons.Rounded.Visibility, contentDescription = null)
+                        }
+                    )
+                },
+            )))
+        }
+        SettingsCategory.RESOURCES -> buildList {
+            add(SettingsSection("resources_current", "当前资源", listOf(
+                SettingsEntry("offline_model_version") {
+                    Preference(
+                        title = { Text("离线模型版本") },
+                        summary = {
+                            Text(
+                                friendlyResourceVersion(viewModel.displaySpamModelResourceVersion(
+                                    settings.spamModelResourceVersion
+                                ))
+                            )
+                        },
+                        icon = {
+                            Icon(Icons.Rounded.Memory, contentDescription = null)
+                        }
+                    )
+                },
+                SettingsEntry("smart_card_rule_version") {
+                    Preference(
+                        title = { Text("智能卡片规则版本") },
+                        summary = {
+                            Text(
+                                friendlyResourceVersion(viewModel.displayRuleResourceVersion(
+                                    settings.ruleResourceVersion
+                                ))
+                            )
+                        },
+                        icon = {
+                            Icon(Icons.AutoMirrored.Rounded.Rule, contentDescription = null)
+                        }
+                    )
+                },
+                SettingsEntry("sender_profile_update") {
+                    Preference(
+                        title = { Text("发件方名称与头像") },
+                        summary = {
+                            Text(
+                                senderProfileVersion?.let { "当前版本：$it，点按检查更新" }
+                                    ?: "未安装发件方资料，点按检查更新"
+                            )
+                        },
+                        enabled = senderProfileUpdateState !is SenderProfileUpdateState.Busy,
+                        icon = { Icon(Icons.Rounded.Badge, contentDescription = null) },
+                        onClick = viewModel::checkSenderProfileUpdates,
+                    )
+                },
+            )))
+            add(SettingsSection("resources_updates", "更新设置", listOf(
+                SettingsEntry("resource_update") {
+                    Preference(
+                        title = { Text("检查资源更新") },
+                        summary = { Text(resourceUpdateSummary) },
+                        enabled = resourceUpdateEnabled,
+                        icon = {
+                            Icon(Icons.Rounded.Sync, contentDescription = null)
+                        },
+                        onClick = viewModel::checkResourceUpdates
+                    )
+                },
+                SettingsEntry("resource_auto_check") {
+                    SwitchPreference(
+                        value = settings.resourceAutoCheckEnabled,
+                        onValueChange = viewModel::setResourceAutoCheckEnabled,
+                        title = { Text("自动检查资源更新") },
+                        summary = {
+                            Text(if (notificationGranted) "定期检查并通知，不会自动下载" else "定期检查，不会自动下载；需要通知权限以接收更新提醒")
+                        },
+                        icon = {
+                            Icon(Icons.Rounded.Update, contentDescription = null)
+                        }
+                    )
+                },
+                SettingsEntry("resource_auto_check_interval") {
+                    Preference(
+                        title = { Text("检查间隔时间") },
+                        summary = {
+                            Text(if (settings.resourceAutoCheckEnabled) "每 ${settings.resourceAutoCheckIntervalHours} 小时检查一次" else "开启自动检查后生效")
+                        },
+                        enabled = settings.resourceAutoCheckEnabled,
+                        icon = {
+                            Icon(Icons.Rounded.Schedule, contentDescription = null)
+                        },
+                        onClick = {
+                            resourceAutoCheckIntervalInput =
+                                settings.resourceAutoCheckIntervalHours.toString()
+                            resourceAutoCheckIntervalError = null
+                            showResourceAutoCheckIntervalDialog = true
+                        }
+                    )
+                },
+            )))
+        }
+        SettingsCategory.BACKUP -> buildList {
+            add(SettingsSection("backup", "备份与恢复", listOf(
+                SettingsEntry("backup_restore") {
+                    Preference(
+                        title = { Text("备份与恢复") },
+                        summary = { Text(if (backupState.restoreProtected) "恢复保护已开启，请进入确认恢复结果" else "支持加密；不含彩信、附件及应用名称与图标选择") },
+                        icon = { Icon(Icons.Rounded.UploadFile, contentDescription = null) },
+                        onClick = onNavigateToBackup,
+                    )
+                },
+            )))
+            add(SettingsSection("maintenance", "数据维护", listOf(
+                SettingsEntry("force_sms_sync") {
+                    Preference(
+                        title = { Text("强制同步短信数据") },
+                        summary = {
+                            Text(
+                                if (smsSyncState is SmsSyncState.Syncing) {
+                                    "正在同步短信数据，请稍候…"
+                                } else {
+                                    "重新读取系统短信和彩信并刷新本地会话缓存"
+                                }
+                            )
+                        },
+                        enabled = smsSyncEnabled,
+                        icon = {
+                            Icon(Icons.Rounded.Sync, contentDescription = null)
+                        },
+                        onClick = {
+                            pendingAdvancedDataAction = AdvancedDataAction.SyncSms
+                        }
+                    )
+                },
+                SettingsEntry("rebuild_verification_code_index") {
+                    Preference(
+                        title = { Text("重新识别全部短信") },
+                        summary = {
+                            Text(
+                                if (isVerificationCodeIndexRunning) {
+                                    "正在重新识别短信，请稍候…"
+                                } else {
+                                    "按照当前识别规则重新扫描短信并刷新验证码索引"
+                                }
+                            )
+                        },
+                        enabled = !isVerificationCodeIndexRunning,
+                        icon = {
+                            Icon(Icons.AutoMirrored.Rounded.Rule, contentDescription = null)
+                        },
+                        onClick = {
+                            pendingAdvancedDataAction = AdvancedDataAction.RecognizeSms
+                        }
+                    )
+                },
+                SettingsEntry("refresh_smartspacer") {
+                    Preference(
+                        title = { Text("刷新 Smartspacer 数据") },
+                        summary = {
+                            Text("手动触发 Smartspacer 重新计算未读数量和快捷卡片")
+                        },
+                        icon = {
+                            Icon(Icons.Rounded.DashboardCustomize, contentDescription = null)
+                        },
+                        onClick = {
+                            pendingAdvancedDataAction = AdvancedDataAction.RefreshSmartspacer
+                        }
+                    )
+                },
+            )))
+        }
+        SettingsCategory.ABOUT -> buildList {
+            add(SettingsSection("about_version", "版本与开源", listOf(
+                SettingsEntry("version_name") {
+                    Preference(
+                        title = { Text("应用版本") },
+                        summary = { Text("$currentDisplayName · ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})") },
+                        icon = {
+                            CurrentAppIdentityIcon()
+                        },
+                        trailing = {},
+                        onClick = {
+                            versionCodeTapCount += 1
+                            if (versionCodeTapCount >= DEBUG_MODE_ENABLE_TAP_COUNT) {
+                                if (!isDebugModeEnabled()) {
+                                    enableDebugMode()
+                                }
+                                showDebugResourceActions = true
+                                versionCodeTapCount = 0
+                                Toast.makeText(
+                                    context,
+                                    "调试模式已启用",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             }
                         }
-
-                        preferenceCategory(
-                            key = "category_advanced_features",
-                            title = { Text("高级功能") }
-                        )
-                        item(key = "backup_restore", contentType = "Preference") {
-                            Preference(
-                                title = { Text("备份与恢复") },
-                                summary = { Text("备份设置、规则和短信，支持密码加密；暂不包含彩信") },
-                                icon = { Icon(Icons.Rounded.UploadFile, contentDescription = null) },
-                                onClick = onNavigateToBackup,
-                            )
-                        }
-                        item(key = "force_sms_sync", contentType = "Preference") {
-                            Preference(
-                                title = { Text("强制同步短信数据") },
-                                summary = {
-                                    Text(
-                                        if (smsSyncState is SmsSyncState.Syncing) {
-                                            "正在同步短信数据，请稍候…"
-                                        } else {
-                                            "重新读取系统短信和彩信并刷新本地会话缓存"
-                                        }
-                                    )
-                                },
-                                enabled = smsSyncEnabled,
-                                icon = {
-                                    Icon(Icons.Rounded.Sync, contentDescription = null)
-                                },
-                                onClick = {
-                                    pendingAdvancedDataAction = AdvancedDataAction.SyncSms
-                                }
-                            )
-                        }
-                        item(key = "rebuild_verification_code_index", contentType = "Preference") {
-                            Preference(
-                                title = { Text("重新识别全部短信") },
-                                summary = {
-                                    Text(
-                                        if (isVerificationCodeIndexRunning) {
-                                            "正在重新识别短信，请稍候…"
-                                        } else {
-                                            "按照当前识别规则重新扫描短信并刷新验证码索引"
-                                        }
-                                    )
-                                },
-                                enabled = !isVerificationCodeIndexRunning,
-                                icon = {
-                                    Icon(Icons.AutoMirrored.Rounded.Rule, contentDescription = null)
-                                },
-                                onClick = {
-                                    pendingAdvancedDataAction = AdvancedDataAction.RecognizeSms
-                                }
-                            )
-                        }
-                        item(key = "refresh_smartspacer", contentType = "Preference") {
-                            Preference(
-                                title = { Text("刷新 Smartspacer 数据") },
-                                summary = {
-                                    Text("手动触发 Smartspacer 重新计算未读数量和快捷卡片")
-                                },
-                                icon = {
-                                    Icon(Icons.Rounded.DashboardCustomize, contentDescription = null)
-                                },
-                                onClick = {
-                                    pendingAdvancedDataAction = AdvancedDataAction.RefreshSmartspacer
-                                }
-                            )
-                        }
-                        if (showDebugResourceActions) {
-                            item(
-                                key = "debug_delete_downloaded_model",
-                                contentType = "Preference"
+                    )
+                },
+                SettingsEntry("open_source") {
+                    Preference(
+                        title = { Text("开源声明") },
+                        summary = { Text("查看开源组件、源码及许可信息") },
+                        icon = { Icon(Icons.Rounded.Code, contentDescription = null) },
+                        onClick = onNavigateToOpenSource,
+                    )
+                },
+            )))
+            add(SettingsSection("about_community", "社区与帮助改进", listOf(
+                SettingsEntry("sample_submission") {
+                    Preference(
+                        title = { Text("上报脱敏短信样本") },
+                        summary = {
+                            Text("手动提交已脱敏的短信样本，也可在短信详情页长按单条短信后快速带入")
+                        },
+                        icon = {
+                            Icon(Icons.Rounded.UploadFile, contentDescription = null)
+                        },
+                        onClick = onNavigateToSampleSubmission
+                    )
+                },
+                SettingsEntry("pixel_tailor") {
+                    Preference(
+                        external = true,
+                        title = { Text("Pixel Tailor") },
+                        summary = { Text("为中国 Pixel 用户精心缝补纯净 Android 体验") },
+                        icon = {
+                            Box(
+                                modifier = Modifier.size(24.dp),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Preference(
-                                    title = { Text("删除下载的模型文件") },
-                                    summary = { Text("删除已下载的离线模型和词表，回退到内置模型") },
-                                    enabled = resourceUpdateEnabled,
-                                    icon = {
-                                        Icon(Icons.Rounded.DeleteSweep, contentDescription = null)
-                                    },
-                                    onClick = viewModel::deleteDownloadedModelResource
+                                Image(
+                                    painterResource(R.drawable.ic_pixel_tailor),
+                                    contentDescription = null
                                 )
                             }
-                            item(
-                                key = "debug_delete_downloaded_rules",
-                                contentType = "Preference"
-                            ) {
-                                Preference(
-                                    title = { Text("删除下载的智能卡片规则文件") },
-                                    summary = { Text("删除已下载的规则文件，回退到内置规则版本") },
-                                    enabled = resourceUpdateEnabled,
-                                    icon = {
-                                        Icon(Icons.Rounded.DeleteSweep, contentDescription = null)
-                                    },
-                                    onClick = viewModel::deleteDownloadedRulesResource
-                                )
-                            }
+                        },
+                        onClick = {
+                            context.openUrl("https://pixel.mystery0.app")
                         }
-
-                        preferenceCategory(
-                            key = "category_about",
-                            title = { Text("关于") }
+                    )
+                },
+                SettingsEntry("telegram_channel") {
+                    Preference(
+                        external = true,
+                        title = { Text("Telegram 频道") },
+                        summary = { Text("关注 Telegram 频道获取最新动态") },
+                        icon = {
+                            Icon(Icons.Rounded.Forum, contentDescription = null)
+                        },
+                        onClick = {
+                            context.openUrl("https://t.me/pixel_tailor_cn")
+                        }
+                    )
+                },
+            )))
+            if (showDebugResourceActions) {
+                add(SettingsSection("debug", "调试工具", listOf(
+                    SettingsEntry("debug_delete_downloaded_model") {
+                        Preference(
+                            title = { Text("删除下载的模型文件") },
+                            summary = { Text("删除已下载的离线模型和词表，回退到内置模型") },
+                            enabled = resourceUpdateEnabled,
+                            icon = {
+                                Icon(Icons.Rounded.DeleteSweep, contentDescription = null)
+                            },
+                            onClick = viewModel::deleteDownloadedModelResource
                         )
-                        item(key = "open_source", contentType = "Preference") {
-                            Preference(
-                                title = { Text("开源声明") },
-                                summary = { Text("查看开源组件、源码及许可信息") },
-                                icon = { Icon(Icons.Rounded.Code, contentDescription = null) },
-                                onClick = onNavigateToOpenSource,
-                            )
-                        }
-                        item(key = "version_name", contentType = "Preference") {
-                            Preference(
-                                title = { Text("版本名称") },
-                                summary = { Text(BuildConfig.VERSION_NAME) },
-                                icon = {
-                                    Icon(Icons.Rounded.Info, contentDescription = null)
-                                }
-                            )
-                        }
-                        item(key = "version_code", contentType = "Preference") {
-                            Preference(
-                                title = { Text("版本号") },
-                                summary = { Text(BuildConfig.VERSION_CODE.toString()) },
-                                icon = {
-                                    Icon(
-                                        Icons.Default.PrivacyTip,
-                                        contentDescription = null
-                                    )
-                                },
-                                onClick = {
-                                    versionCodeTapCount += 1
-                                    if (versionCodeTapCount >= DEBUG_MODE_ENABLE_TAP_COUNT) {
-                                        if (!isDebugModeEnabled()) {
-                                            enableDebugMode()
-                                        }
-                                        versionCodeTapCount = 0
-                                        Toast.makeText(
-                                            context,
-                                            "调试模式已启用",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
-                                }
-                            )
-                        }
-                        item(key = "pixel_tailor", contentType = "Preference") {
-                            Preference(
-                                title = { Text("Pixel Tailor") },
-                                summary = { Text("为中国 Pixel 用户精心缝补纯净 Android 体验") },
-                                icon = {
-                                    Box(
-                                        modifier = Modifier.size(24.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Image(
-                                            painterResource(R.drawable.ic_pixel_tailor),
-                                            contentDescription = null
-                                        )
-                                    }
-                                },
-                                onClick = {
-                                    context.openUrl("https://pixel.mystery0.app")
-                                }
-                            )
-                        }
-                        item(key = "telegram_channel", contentType = "Preference") {
-                            Preference(
-                                title = { Text("Telegram 频道") },
-                                summary = { Text("关注 Telegram 频道获取最新动态") },
-                                icon = {
-                                    Icon(Icons.Rounded.Forum, contentDescription = null)
-                                },
-                                onClick = {
-                                    context.openUrl("https://t.me/pixel_tailor_cn")
-                                }
-                            )
-                        }
-                        item {
-                            Spacer(
-                                modifier = Modifier.windowInsetsBottomHeight(
-                                    WindowInsets.navigationBars
-                                )
-                            )
+                    },
+                    SettingsEntry("debug_delete_downloaded_rules") {
+                        Preference(
+                            title = { Text("删除下载的智能卡片规则文件") },
+                            summary = { Text("删除已下载的规则文件，回退到内置规则版本") },
+                            enabled = resourceUpdateEnabled,
+                            icon = {
+                                Icon(Icons.Rounded.DeleteSweep, contentDescription = null)
+                            },
+                            onClick = viewModel::deleteDownloadedRulesResource
+                        )
+                    },
+                )))
+            }
+        }
+        SettingsCategory.PERMISSIONS -> buildList {
+            add(SettingsSection("default_role", "默认短信角色", listOf(
+                SettingsEntry("default_sms") {
+                    Preference(
+                        title = { Text("默认短信应用") },
+                        summary = { Text(if (defaultSmsApp) "已设为默认短信应用" else "设置后可完整接收、发送和管理短信") },
+                        icon = { Icon(Icons.Rounded.Shield, null) },
+                        onClick = if (defaultSmsApp) null else ({ defaultSmsAppLauncher.launch(context.createDefaultSmsAppRequestIntent()) }),
+                    )
+                },
+            )))
+            add(SettingsSection("permissions", "应用权限", permissionItems.map { item ->
+                SettingsEntry("permission_${item.key}") {
+                    PermissionPreference(item) {
+                        if (item.openNotificationSettings) {
+                            context.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName))
+                        } else {
+                            pendingPermissionDialogItem = item
                         }
                     }
                 }
-            }
+            }))
+            add(SettingsSection("system_permissions", "系统管理", listOf(
+                SettingsEntry("system_app_settings") {
+                    Preference(
+                        title = { Text("在系统中管理权限") },
+                        summary = { Text("权限被拒绝后，可在系统应用详情中重新授权或调整通知") },
+                        icon = { Icon(Icons.Rounded.Shield, null) },
+                        external = true,
+                        onClick = {
+                            context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                "package:${context.packageName}".toUri()))
+                        },
+                    )
+                },
+            )))
         }
+        null -> emptyList()
+    }
+
+    fun categorySummary(category: SettingsCategory): String = when (category) {
+        SettingsCategory.MESSAGES -> "智能卡片、验证码管理与彩信"
+        SettingsCategory.SPAM -> when {
+            settings.spamDetectionEnabled && blockedKeywords.isNotEmpty() -> "模型识别已开启 · ${blockedKeywords.size} 个关键词"
+            settings.spamDetectionEnabled -> "本地模型识别已开启"
+            blockedKeywords.isNotEmpty() -> "仅关键词拦截生效（${blockedKeywords.size} 个）"
+            else -> "未开启自动识别"
+        }
+        SettingsCategory.DISPLAY -> "应用图标、会话样式与通知操作"
+        SettingsCategory.RESOURCES -> if (resourceUpdateState is ResourceUpdateState.Available) "发现可用资源更新" else "离线模型、卡片规则与发件方资料"
+        SettingsCategory.BACKUP -> if (backupState.restoreProtected) "恢复保护已开启，请确认恢复结果" else "备份恢复、数据同步与修复"
+        SettingsCategory.PERMISSIONS -> when {
+            !defaultSmsApp -> "尚未设为默认短信应用"
+            permissionItems.any { !it.granted } -> "${permissionItems.count { !it.granted }} 项权限待授权"
+            else -> "已设为默认短信应用 · 权限齐全"
+        }
+        SettingsCategory.ABOUT -> "${currentDisplayName} · ${BuildConfig.VERSION_NAME}"
+    }
+
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val wideLayout = maxWidth >= 840.dp
+        fun handleBack() {
+            if (wideLayout && returnCategory == null) onNavigateBack() else navigateBack()
+        }
+        BackHandler(enabled = selectedCategory != null || wideLayout, onBack = ::handleBack)
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    navigationIcon = { IconButton(onClick = ::handleBack) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回")
+                    } },
+                    title = { Text(if (wideLayout) "设置" else selectedCategory?.title ?: "设置") },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                )
+            },
+            containerColor = MaterialTheme.colorScheme.background,
+        ) { padding ->
+            SettingsPage(
+                category = selectedCategory, wide = wideLayout, sections = sections, summary = ::categorySummary,
+                onSelect = { selectedCategory = it; returnCategory = null; targetSection = null },
+                notice = when {
+                    !defaultSmsApp -> "尚未设为默认短信应用"
+                    !notificationGranted -> "通知权限未开启，收到短信时无法提醒"
+                    permissionItems.any { it.key == "sms" && !it.granted } -> "短信权限未授予"
+                    else -> null
+                },
+                onNoticeClick = { selectedCategory = SettingsCategory.PERMISSIONS; returnCategory = null },
+                targetSection = targetSection, onTargetConsumed = { targetSection = null },
+                modifier = Modifier.padding(padding).consumeWindowInsets(padding),
+            )
+        }
+
     }
 
     pendingAdvancedDataAction?.let { action ->
@@ -997,6 +1030,10 @@ fun SettingsScreen(
     }
 
     if (showMessageTimeFormatDialog) {
+        val sampleTime = remember {
+            java.time.LocalDateTime.now().minusMinutes(5)
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy年M月d日 HH:mm:ss"))
+        }
         AlertDialog(
             onDismissRequest = { showMessageTimeFormatDialog = false },
             title = { Text("短信时间显示格式") },
@@ -1006,6 +1043,7 @@ fun SettingsScreen(
                         MessageTimeFormatOption(
                             format = format,
                             selected = settings.messageTimeDisplayFormat == format,
+                            sampleTime = sampleTime,
                             onClick = {
                                 viewModel.setMessageTimeDisplayFormat(format)
                                 showMessageTimeFormatDialog = false
@@ -1025,7 +1063,7 @@ fun SettingsScreen(
     if (showSpamAutoActionDialog) {
         AlertDialog(
             onDismissRequest = { showSpamAutoActionDialog = false },
-            title = { Text("骚扰短信自动执行") },
+            title = { Text("收到骚扰短信后") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     SpamAutoAction.entries.forEach { action ->
@@ -1033,8 +1071,12 @@ fun SettingsScreen(
                             action = action,
                             selected = settings.spamAutoAction == action,
                             onClick = {
-                                viewModel.setSpamAutoAction(action)
                                 showSpamAutoActionDialog = false
+                                if (action == SpamAutoAction.DELETE && settings.spamAutoAction != action) {
+                                    confirmSpamDeletion = true
+                                } else {
+                                    viewModel.setSpamAutoAction(action)
+                                }
                             }
                         )
                     }
@@ -1045,6 +1087,19 @@ fun SettingsScreen(
                     Text("取消")
                 }
             }
+        )
+    }
+
+    if (confirmSpamDeletion) {
+        AlertDialog(
+            onDismissRequest = { confirmSpamDeletion = false },
+            title = { Text("自动删除骚扰短信？") },
+            text = { Text("模型和关键词可能误判。启用后，新收到并被判定为骚扰的短信会被自动删除。请确认白名单已正确配置。") },
+            confirmButton = { TextButton(enabled = settings.muteSpamNotificationsEnabled, onClick = {
+                if (settings.muteSpamNotificationsEnabled) viewModel.setSpamAutoAction(SpamAutoAction.DELETE)
+                confirmSpamDeletion = false
+            }) { Text("启用自动删除") } },
+            dismissButton = { TextButton(onClick = { confirmSpamDeletion = false }) { Text("取消") } },
         )
     }
 
@@ -1185,6 +1240,14 @@ fun SettingsScreen(
                 key(sheetMode) {
                     ResourceUpdateSheetContent(
                         state = resourceUpdateState,
+                        installedSummary = buildString {
+                            append("当前模型：${friendlyResourceVersion(viewModel.displaySpamModelResourceVersion(settings.spamModelResourceVersion))}")
+                            append("\n当前词表：${friendlyResourceVersion(settings.vocabResourceVersion)}")
+                            append("\n当前规则：${friendlyResourceVersion(viewModel.displayRuleResourceVersion(settings.ruleResourceVersion))}")
+                            if (settings.resourceUpdatedAt > 0) {
+                                append("\n上次更新：${java.text.DateFormat.getDateTimeInstance().format(java.util.Date(settings.resourceUpdatedAt))}")
+                            }
+                        },
                         onInstall = viewModel::installResourceUpdates,
                         onDismiss = viewModel::dismissResourceUpdateDialog
                     )
@@ -1203,6 +1266,7 @@ private fun SenderProfileUpdateSheetContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp)
             .padding(bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -1281,6 +1345,7 @@ private fun formatBytes(bytes: Long): String = when {
 @Composable
 private fun ResourceUpdateSheetContent(
     state: ResourceUpdateState,
+    installedSummary: String,
     onInstall: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -1412,6 +1477,9 @@ private fun ResourceUpdateSheetContent(
                 }
             }
         }
+        HorizontalDivider()
+        Text(installedSummary, style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -1463,6 +1531,7 @@ private enum class ResourceUpdateSheetMode {
 private fun MessageTimeFormatOption(
     format: MessageTimeDisplayFormat,
     selected: Boolean,
+    sampleTime: String,
     onClick: () -> Unit
 ) {
     Row(
@@ -1482,7 +1551,7 @@ private fun MessageTimeFormatOption(
                 style = MaterialTheme.typography.bodyLarge
             )
             Text(
-                text = format.dialogSummary(),
+                text = format.dialogSummary(sampleTime),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1532,17 +1601,10 @@ private fun MessageTimeDisplayFormat.title(): String {
     }
 }
 
-private fun MessageTimeDisplayFormat.preferenceSummary(): String {
+private fun MessageTimeDisplayFormat.dialogSummary(sampleTime: String): String {
     return when (this) {
-        MessageTimeDisplayFormat.HUMANIZED -> "默认显示“刚刚、5分钟前、2小时前”等相对时间"
-        MessageTimeDisplayFormat.DETAILED -> "默认显示“2026年6月22日 17:38:05”等完整时间"
-    }
-}
-
-private fun MessageTimeDisplayFormat.dialogSummary(): String {
-    return when (this) {
-        MessageTimeDisplayFormat.HUMANIZED -> "例如：刚刚、5分钟前、2小时前；点按消息时间可临时切换为详细时间"
-        MessageTimeDisplayFormat.DETAILED -> "例如：2026年6月22日 17:38:05；点按消息时间可临时切换为人性化时间"
+        MessageTimeDisplayFormat.HUMANIZED -> "同一条示例短信：5分钟前；点按消息时间可临时切换为详细时间"
+        MessageTimeDisplayFormat.DETAILED -> "同一条示例短信：$sampleTime；点按消息时间可临时切换为人性化时间"
     }
 }
 
@@ -1672,14 +1734,21 @@ private fun PermissionPreference(
 ) {
     Preference(
         title = { Text(item.title) },
-        summary = { Text(item.summary) },
+        summary = { Text("${if (item.granted) "已授权" else "去授权"} · ${item.summary}") },
         icon = {
             Icon(
-                if (item.granted) Icons.Default.Check else Icons.Default.Close,
+                when (item.key) {
+                    "phone" -> Icons.Rounded.Phone
+                    "sms" -> Icons.Rounded.Sms
+                    "contacts" -> Icons.Rounded.Contacts
+                    else -> Icons.Rounded.Notifications
+                },
                 contentDescription = null,
-                tint = if (item.granted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         },
+        trailing = if (item.granted) ({ Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) }) else null,
+        external = item.openNotificationSettings,
         onClick = if (item.granted) null else onRequest
     )
 }
@@ -1689,7 +1758,8 @@ private data class PermissionItem(
     val title: String,
     val summary: String,
     val missingPermissions: List<String>,
-    val granted: Boolean
+    val granted: Boolean,
+    val openNotificationSettings: Boolean = false,
 )
 
 private fun buildPermissionItems(context: Context): List<PermissionItem> {
@@ -1735,7 +1805,14 @@ private fun buildPermissionItems(context: Context): List<PermissionItem> {
                 } else {
                     emptyList()
                 }
-            )
+            ).let { item ->
+                // 运行时权限已授予时，系统仍可能关闭整个应用的通知。
+                val notificationsEnabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
+                item.copy(
+                    granted = item.granted && notificationsEnabled,
+                    openNotificationSettings = item.granted && !notificationsEnabled,
+                )
+            }
         )
     }
 }
@@ -1786,3 +1863,10 @@ private val MARQUEE_EDGE_PAUSE_MS = 900L.milliseconds
 private const val MARQUEE_MILLIS_PER_PIXEL = 18
 private const val MARQUEE_MIN_DURATION_MS = 1200
 private const val MARQUEE_MAX_DURATION_MS = 6000
+
+private fun friendlyResourceVersion(version: String): String =
+    when {
+        version == "builtin" -> "内置版本"
+        version.startsWith("builtin(") -> "内置版本${version.removePrefix("builtin")}"
+        else -> version
+    }
