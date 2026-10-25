@@ -28,7 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.runtime.saveable.SaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -52,6 +52,7 @@ fun SettingsPage(
     category: SettingsCategory?,
     wide: Boolean,
     sections: List<SettingsSection>,
+    states: SaveableStateHolder,
     summary: (SettingsCategory) -> String,
     onSelect: (SettingsCategory) -> Unit,
     notice: String?,
@@ -60,7 +61,6 @@ fun SettingsPage(
     onTargetConsumed: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val states = rememberSaveableStateHolder()
     Box(modifier.fillMaxSize()) {
         Row(Modifier.fillMaxSize()) {
             if (wide || category == null) {

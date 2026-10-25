@@ -365,7 +365,7 @@ private fun conversationDetailRoute(
     return "$baseRoute?contentFilter=${contentFilter.name}$messageParameter"
 }
 
-private fun activityLikeEnterTransition(): EnterTransition {
+internal fun activityLikeEnterTransition(): EnterTransition {
     return slideInHorizontally(
         initialOffsetX = { fullWidth -> fullWidth },
         animationSpec = tween(
@@ -383,7 +383,7 @@ private fun activityLikeEnterTransition(): EnterTransition {
             )
 }
 
-private fun activityLikeExitTransition(): ExitTransition {
+internal fun activityLikeExitTransition(): ExitTransition {
     return slideOutHorizontally(
         targetOffsetX = { fullWidth -> -fullWidth / ACTIVITY_BACKGROUND_OFFSET_DIVISOR },
         animationSpec = tween(
@@ -401,7 +401,7 @@ private fun activityLikeExitTransition(): ExitTransition {
             )
 }
 
-private fun activityLikePopEnterTransition(): EnterTransition {
+internal fun activityLikePopEnterTransition(): EnterTransition {
     return slideInHorizontally(
         initialOffsetX = { fullWidth -> -fullWidth / ACTIVITY_BACKGROUND_OFFSET_DIVISOR },
         animationSpec = tween(
@@ -419,7 +419,7 @@ private fun activityLikePopEnterTransition(): EnterTransition {
             )
 }
 
-private fun activityLikePopExitTransition(): ExitTransition {
+internal fun activityLikePopExitTransition(): ExitTransition {
     return slideOutHorizontally(
         targetOffsetX = { fullWidth -> fullWidth },
         animationSpec = tween(

@@ -1,6 +1,12 @@
 package vip.mystery0.pixel.text.ui.screen
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.key
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import vip.mystery0.pixel.text.ui.activityLikeEnterTransition
+import vip.mystery0.pixel.text.ui.activityLikeExitTransition
+import vip.mystery0.pixel.text.ui.activityLikePopEnterTransition
+import vip.mystery0.pixel.text.ui.activityLikePopExitTransition
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import vip.mystery0.pixel.text.ui.screen.settings.SettingsCategory
@@ -171,7 +177,10 @@ fun SettingsScreen(
     var selectedCategory by rememberSaveable { mutableStateOf<SettingsCategory?>(null) }
     var returnCategory by rememberSaveable { mutableStateOf<SettingsCategory?>(null) }
     var targetSection by rememberSaveable { mutableStateOf<String?>(null) }
+    var navigatingBack by remember { mutableStateOf(false) }
+    val categoryStates = rememberSaveableStateHolder()
     fun navigateBack() {
+        navigatingBack = true
         if (selectedCategory != null) {
             selectedCategory = returnCategory
             returnCategory = null
@@ -247,6 +256,7 @@ fun SettingsScreen(
 
     LaunchedEffect(resourceUpdateCheckRequestId) {
         if (resourceUpdateCheckRequestId != null) {
+            navigatingBack = false
             selectedCategory = SettingsCategory.RESOURCES
             returnCategory = null
             targetSection = null
@@ -265,7 +275,7 @@ fun SettingsScreen(
         }
     }
 
-    val sections = when (selectedCategory) {
+    fun sectionsFor(category: SettingsCategory?) = when (category) {
         SettingsCategory.MESSAGES -> buildList {
             add(SettingsSection("message_cards", "短信卡片", listOf(
                 SettingsEntry("smart_card") {
@@ -334,6 +344,7 @@ fun SettingsScreen(
                         icon = { Icon(Icons.Rounded.Lock, null) },
                         onClick = {
                             returnCategory = SettingsCategory.MESSAGES
+                            navigatingBack = false
                             selectedCategory = SettingsCategory.DISPLAY
                             targetSection = "display_notifications"
                         },
@@ -923,33 +934,53 @@ fun SettingsScreen(
             if (wideLayout && returnCategory == null) onNavigateBack() else navigateBack()
         }
         BackHandler(enabled = selectedCategory != null || wideLayout, onBack = ::handleBack)
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    navigationIcon = { IconButton(onClick = ::handleBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回")
-                    } },
-                    title = { Text(if (wideLayout) "设置" else selectedCategory?.title ?: "设置") },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-                )
-            },
-            containerColor = MaterialTheme.colorScheme.background,
-        ) { padding ->
-            SettingsPage(
-                category = selectedCategory, wide = wideLayout, sections = sections, summary = ::categorySummary,
-                onSelect = { selectedCategory = it; returnCategory = null; targetSection = null },
-                notice = when {
-                    !defaultSmsApp -> "尚未设为默认短信应用"
-                    !notificationGranted -> "通知权限未开启，收到短信时无法提醒"
-                    permissionItems.any { it.key == "sms" && !it.granted } -> "短信权限未授予"
-                    else -> null
+        // 宽窄布局切换直接重建容器，分类间转场与应用导航复用同一组动效。
+        key(wideLayout) {
+            AnimatedContent(
+                targetState = if (wideLayout) null else selectedCategory,
+                modifier = Modifier.fillMaxSize(),
+                transitionSpec = {
+                    if (navigatingBack) {
+                        (activityLikePopEnterTransition() togetherWith activityLikePopExitTransition())
+                            .apply { targetContentZIndex = -1f }
+                    } else {
+                        (activityLikeEnterTransition() togetherWith activityLikeExitTransition())
+                            .apply { targetContentZIndex = 1f }
+                    }.using(null)
                 },
-                onNoticeClick = { selectedCategory = SettingsCategory.PERMISSIONS; returnCategory = null },
-                targetSection = targetSection, onTargetConsumed = { targetSection = null },
-                modifier = Modifier.padding(padding).consumeWindowInsets(padding),
-            )
+                label = "settings_navigation",
+            ) { animatedCategory ->
+                val pageCategory = if (wideLayout) selectedCategory else animatedCategory
+                Scaffold(
+                    topBar = {
+                        TopAppBar(
+                            navigationIcon = { IconButton(onClick = ::handleBack) {
+                                Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回")
+                            } },
+                            title = { Text(if (wideLayout) "设置" else pageCategory?.title ?: "设置") },
+                            colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                        )
+                    },
+                    containerColor = MaterialTheme.colorScheme.background,
+                ) { padding ->
+                    SettingsPage(
+                        category = pageCategory, wide = wideLayout, sections = sectionsFor(pageCategory),
+                        states = categoryStates, summary = ::categorySummary,
+                        onSelect = { navigatingBack = false; selectedCategory = it; returnCategory = null; targetSection = null },
+                        notice = when {
+                            !defaultSmsApp -> "尚未设为默认短信应用"
+                            !notificationGranted -> "通知权限未开启，收到短信时无法提醒"
+                            permissionItems.any { it.key == "sms" && !it.granted } -> "短信权限未授予"
+                            else -> null
+                        },
+                        onNoticeClick = { navigatingBack = false; selectedCategory = SettingsCategory.PERMISSIONS; returnCategory = null },
+                        targetSection = targetSection.takeIf { pageCategory == selectedCategory },
+                        onTargetConsumed = { targetSection = null },
+                        modifier = Modifier.padding(padding).consumeWindowInsets(padding),
+                    )
+                }
+            }
         }
-
     }
 
     pendingAdvancedDataAction?.let { action ->
