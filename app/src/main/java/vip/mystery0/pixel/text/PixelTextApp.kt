@@ -5,6 +5,8 @@ import android.app.Activity
 import android.os.Bundle
 import android.Manifest
 import android.content.pm.PackageManager
+import android.util.Log
+import vip.mystery0.pixel.text.domain.settings.AppIdentityRepository
 import vip.mystery0.pixel.text.data.repository.mirror.MirrorChangeObserver
 import vip.mystery0.pixel.text.worker.MessageMirrorScheduler
 import org.koin.android.ext.android.getKoin
@@ -28,6 +30,12 @@ class PixelTextApp : Application() {
             androidLogger()
             androidContext(this@PixelTextApp)
             modules(appModule)
+        }
+        try {
+            getKoin().get<AppIdentityRepository>().reconcile()
+        } catch (error: Exception) {
+            // 包括仓库初始化失败，身份恢复不能阻止短信应用启动。
+            Log.e("PixelTextApp", "app identity startup failed", error)
         }
         getKoin().get<ResourceUpdateScheduler>().syncOnAppStart()
 

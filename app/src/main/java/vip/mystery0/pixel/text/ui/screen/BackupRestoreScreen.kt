@@ -80,7 +80,7 @@ fun BackupRestoreScreen(onNavigateBack: () -> Unit, viewModel: BackupViewModel =
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
-                "备份 Pixel Text 的设置、规则和短信镜像。首版不包含彩信及附件，请在操作期间保持应用前台。",
+                "备份应用的设置、规则和短信镜像。不包含彩信、附件及应用名称与图标选择，请在操作期间保持应用前台。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

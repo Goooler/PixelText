@@ -43,6 +43,7 @@ import vip.mystery0.pixel.text.ui.screen.SampleSubmissionScreen
 import vip.mystery0.pixel.text.ui.screen.SettingsScreen
 import vip.mystery0.pixel.text.ui.screen.OpenSourceScreen
 import vip.mystery0.pixel.text.ui.screen.SmsNotificationIconSettingsScreen
+import vip.mystery0.pixel.text.ui.screen.AppIdentitySettingsScreen
 import vip.mystery0.pixel.text.ui.screen.SpamConversationListScreen
 import vip.mystery0.pixel.text.ui.screen.SwipeActionSettingsScreen
 
@@ -192,6 +193,7 @@ fun AppNavigation(
                     onNavigateToSmsNotificationIcons = {
                         navController.navigate("sms_notification_icons")
                     },
+                    onNavigateToAppIdentity = { navController.navigate("app_identity") },
                     onNavigateToSenderWhitelist = { navController.navigate("sender_whitelist") },
                     onNavigateToKeywordSpam = {
                         navController.navigate("keyword_spam")
@@ -219,6 +221,9 @@ fun AppNavigation(
                 SmsNotificationIconSettingsScreen(
                     onNavigateBack = { navController.popBackStack() }
                 )
+            }
+            composable("app_identity") {
+                AppIdentitySettingsScreen(onNavigateBack = { navController.popBackStack() })
             }
             composable("sender_whitelist") {
                 vip.mystery0.pixel.text.ui.screen.SenderWhitelistScreen(

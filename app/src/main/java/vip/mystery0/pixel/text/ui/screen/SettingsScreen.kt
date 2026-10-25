@@ -146,6 +146,7 @@ fun SettingsScreen(
     onNavigateToSwipeActions: () -> Unit = {},
     onNavigateToNotificationActions: () -> Unit = {},
     onNavigateToSmsNotificationIcons: () -> Unit = {},
+    onNavigateToAppIdentity: () -> Unit = {},
     onNavigateToKeywordSpam: () -> Unit = {},
     onNavigateToBackup: () -> Unit = {},
     onNavigateToOpenSource: () -> Unit = {},
@@ -389,6 +390,35 @@ fun SettingsScreen(
                             key = "category_display",
                             title = { Text("显示与外观") },
                         )
+                        item(key = "app_identity", contentType = "Preference") {
+                            AppIdentitySettingsPreference(onClick = onNavigateToAppIdentity)
+                        }
+                        item(
+                            key = "sms_notification_icon",
+                            contentType = "Preference"
+                        ) {
+                            Preference(
+                                title = { Text("短信通知图标") },
+                                summary = {
+                                    Text(
+                                        SmsNotificationIcon.fromId(
+                                            settings.smsNotificationIconId
+                                        ).displayName
+                                    )
+                                },
+                                icon = {
+                                    Icon(
+                                        painter = painterResource(
+                                            SmsNotificationIcon.fromId(
+                                                settings.smsNotificationIconId
+                                            ).drawableRes
+                                        ),
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = onNavigateToSmsNotificationIcons
+                            )
+                        }
                         item(key = "conversation_detail_customization", contentType = "Preference") {
                             Preference(
                                 title = { Text("会话详情显示") },
@@ -397,6 +427,65 @@ fun SettingsScreen(
                                     Icon(Icons.Rounded.Palette, contentDescription = null)
                                 },
                                 onClick = onNavigateToConversationDetailCustomization,
+                            )
+                        }
+                        item(key = "message_time_display_format", contentType = "Preference") {
+                            Preference(
+                                title = { Text("短信时间显示格式") },
+                                summary = {
+                                    Text(settings.messageTimeDisplayFormat.preferenceSummary())
+                                },
+                                icon = {
+                                    Icon(Icons.Rounded.Schedule, contentDescription = null)
+                                },
+                                onClick = { showMessageTimeFormatDialog = true }
+                            )
+                        }
+                        item(key = "conversation_swipe_actions", contentType = "Preference") {
+                            Preference(
+                                title = { Text("滑动操作") },
+                                summary = {
+                                    Text(
+                                        "向右滑动：${settings.rightSwipeAction.settingTitle()}；" +
+                                                "向左滑动：${settings.leftSwipeAction.settingTitle()}"
+                                    )
+                                },
+                                icon = {
+                                    Icon(Icons.Rounded.PlayArrow, contentDescription = null)
+                                },
+                                onClick = onNavigateToSwipeActions
+                            )
+                        }
+                        item(
+                            key = "notification_quick_actions",
+                            contentType = "Preference"
+                        ) {
+                            Preference(
+                                title = { Text("通知快捷操作") },
+                                summary = {
+                                    Text(settings.notificationQuickActionConfigs.settingsSummary())
+                                },
+                                icon = {
+                                    Icon(Icons.Rounded.Forum, contentDescription = null)
+                                },
+                                onClick = onNavigateToNotificationActions
+                            )
+                        }
+                        item(
+                            key = "verification_code_notification_action",
+                            contentType = "SwitchPreference"
+                        ) {
+                            SwitchPreference(
+                                value = settings.verificationCodeNotificationActionEnabled,
+                                onValueChange =
+                                    viewModel::setVerificationCodeNotificationActionEnabled,
+                                title = { Text("验证码通知快捷复制") },
+                                summary = {
+                                    Text("验证码短信通知中显示复制验证码操作")
+                                },
+                                icon = {
+                                    Icon(Icons.Rounded.ContentCopy, contentDescription = null)
+                                }
                             )
                         }
                         preferenceCategory(
@@ -534,91 +623,6 @@ fun SettingsScreen(
                                         Icons.Rounded.DashboardCustomize,
                                         contentDescription = null
                                     )
-                                }
-                            )
-                        }
-                        item(key = "message_time_display_format", contentType = "Preference") {
-                            Preference(
-                                title = { Text("短信时间显示格式") },
-                                summary = {
-                                    Text(settings.messageTimeDisplayFormat.preferenceSummary())
-                                },
-                                icon = {
-                                    Icon(Icons.Rounded.Schedule, contentDescription = null)
-                                },
-                                onClick = { showMessageTimeFormatDialog = true }
-                            )
-                        }
-                        item(key = "conversation_swipe_actions", contentType = "Preference") {
-                            Preference(
-                                title = { Text("滑动操作") },
-                                summary = {
-                                    Text(
-                                        "向右滑动：${settings.rightSwipeAction.settingTitle()}；" +
-                                                "向左滑动：${settings.leftSwipeAction.settingTitle()}"
-                                    )
-                                },
-                                icon = {
-                                    Icon(Icons.Rounded.PlayArrow, contentDescription = null)
-                                },
-                                onClick = onNavigateToSwipeActions
-                            )
-                        }
-                        item(
-                            key = "notification_quick_actions",
-                            contentType = "Preference"
-                        ) {
-                            Preference(
-                                title = { Text("通知快捷操作") },
-                                summary = {
-                                    Text(settings.notificationQuickActionConfigs.settingsSummary())
-                                },
-                                icon = {
-                                    Icon(Icons.Rounded.Forum, contentDescription = null)
-                                },
-                                onClick = onNavigateToNotificationActions
-                            )
-                        }
-                        item(
-                            key = "sms_notification_icon",
-                            contentType = "Preference"
-                        ) {
-                            Preference(
-                                title = { Text("短信通知图标") },
-                                summary = {
-                                    Text(
-                                        SmsNotificationIcon.fromId(
-                                            settings.smsNotificationIconId
-                                        ).displayName
-                                    )
-                                },
-                                icon = {
-                                    Icon(
-                                        painter = painterResource(
-                                            SmsNotificationIcon.fromId(
-                                                settings.smsNotificationIconId
-                                            ).drawableRes
-                                        ),
-                                        contentDescription = null
-                                    )
-                                },
-                                onClick = onNavigateToSmsNotificationIcons
-                            )
-                        }
-                        item(
-                            key = "verification_code_notification_action",
-                            contentType = "SwitchPreference"
-                        ) {
-                            SwitchPreference(
-                                value = settings.verificationCodeNotificationActionEnabled,
-                                onValueChange =
-                                    viewModel::setVerificationCodeNotificationActionEnabled,
-                                title = { Text("验证码通知快捷复制") },
-                                summary = {
-                                    Text("验证码短信通知中显示复制验证码操作")
-                                },
-                                icon = {
-                                    Icon(Icons.Rounded.ContentCopy, contentDescription = null)
                                 }
                             )
                         }

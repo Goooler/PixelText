@@ -31,8 +31,11 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        pendingDeepLink = parseDeepLink(intent)
-        pendingSettingsDeepLink = parseSettingsDeepLink(intent)
+        // 配置变化或进程恢复由导航保存状态接管，不能重放已消费的启动跳转。
+        if (savedInstanceState == null) {
+            pendingDeepLink = parseDeepLink(intent)
+            pendingSettingsDeepLink = parseSettingsDeepLink(intent)
+        }
 
         setContent {
             PixelTextTheme {

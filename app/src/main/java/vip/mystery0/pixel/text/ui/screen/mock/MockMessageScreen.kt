@@ -24,10 +24,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.koin.compose.koinInject
-import vip.mystery0.pixel.text.R
+import vip.mystery0.pixel.text.ui.screen.currentAppDisplayName
 import vip.mystery0.pixel.text.domain.settings.MessageTimeDisplayFormat
 import vip.mystery0.pixel.text.domain.theme.ThemeConfiguration
 import vip.mystery0.pixel.text.domain.theme.ThemeMode
@@ -38,6 +37,7 @@ import vip.mystery0.pixel.text.ui.theme.resolveConversationDetailStyle
 fun MockMessageScreen(
     messageFactory: MockMessageFactory = koinInject(),
 ) {
+    val appDisplayName = currentAppDisplayName()
     var showMms by rememberSaveable { mutableStateOf(false) }
     if (showMms) {
         MockMmsContentScreen(onBack = { showMms = false })
@@ -57,7 +57,7 @@ fun MockMessageScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.app_name)) },
+                title = { Text(appDisplayName) },
                 actions = { TextButton(onClick = { showMms = true }) { Text("彩信媒体") } },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,

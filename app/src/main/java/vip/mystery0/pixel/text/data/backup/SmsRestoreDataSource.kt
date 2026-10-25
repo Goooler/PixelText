@@ -30,7 +30,7 @@ class SmsRestoreDataSource(
     private val resolver get() = context.contentResolver
     fun requireAccess() {
         backupRequire(context.checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED, "请授予读取短信权限")
-        backupRequire(context.getSystemService(android.app.role.RoleManager::class.java).isRoleHeld(android.app.role.RoleManager.ROLE_SMS), "请先将 Pixel Text 设置为默认短信应用")
+        backupRequire(context.getSystemService(android.app.role.RoleManager::class.java).isRoleHeld(android.app.role.RoleManager.ROLE_SMS), "请先将本应用设置为默认短信应用")
     }
 
     suspend fun restore(directory: File, initial: BackupSummary, progress: (BackupSummary) -> Unit): BackupSummary {

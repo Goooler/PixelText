@@ -100,7 +100,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -155,6 +154,7 @@ fun ConversationListScreen(
     onFloatingActionButtonVisibilityChanged: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
+    val appDisplayName = currentAppDisplayName()
     val showDebugMenu = isDebugModeEnabled()
     var hasPermission by remember {
         mutableStateOf(
@@ -369,7 +369,7 @@ fun ConversationListScreen(
                         Text(
                             text = when {
                                 selectionMode -> "已选择 ${selectedThreadIds.size} 项"
-                                else -> stringResource(id = R.string.app_name)
+                                else -> appDisplayName
                             },
                             style = MaterialTheme.typography.titleLarge
                         )
@@ -660,7 +660,7 @@ fun ConversationListScreen(
             title = { Text("需要短信读取权限") },
             text = {
                 Text(
-                    "PixelText 需要读取短信权限来显示本机会话列表和短信内容。点击申请后，如尚未设置默认短信应用，会先显示默认短信应用请求，再显示系统权限请求。"
+                    "本应用需要读取短信权限来显示本机会话列表和短信内容。点击申请后，如尚未设置默认短信应用，会先显示默认短信应用请求，再显示系统权限请求。"
                 )
             },
             confirmButton = {
@@ -1347,7 +1347,7 @@ fun NewChatBottomSheet(
             title = { Text("需要联系人权限") },
             text = {
                 Text(
-                    "PixelText 需要联系人权限来打开联系人选择器并填入收件人号码。点击申请后，如尚未设置默认短信应用，会先显示默认短信应用请求，再显示系统权限请求。"
+                    "本应用需要联系人权限来打开联系人选择器并填入收件人号码。点击申请后，如尚未设置默认短信应用，会先显示默认短信应用请求，再显示系统权限请求。"
                 )
             },
             confirmButton = {

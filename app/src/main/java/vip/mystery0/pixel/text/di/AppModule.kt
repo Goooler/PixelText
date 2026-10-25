@@ -37,6 +37,7 @@ import vip.mystery0.pixel.text.data.db.ConversationCacheDatabase
 import vip.mystery0.pixel.text.data.db.SpamDatabase
 import vip.mystery0.pixel.text.data.db.VerificationCodeIndexDatabase
 import vip.mystery0.pixel.text.data.repository.AppSettingsRepositoryImpl
+import vip.mystery0.pixel.text.data.repository.AppIdentityRepositoryImpl
 import vip.mystery0.pixel.text.data.repository.ConversationCacheRepository
 import vip.mystery0.pixel.text.data.repository.HubResourceRepository
 import vip.mystery0.pixel.text.data.repository.KeywordSpamRepositoryImpl
@@ -60,6 +61,7 @@ import vip.mystery0.pixel.text.domain.parser.MessageParser
 import vip.mystery0.pixel.text.domain.repository.MessageRepository
 import vip.mystery0.pixel.text.domain.repository.VerificationCodeRepository
 import vip.mystery0.pixel.text.domain.settings.AppSettingsRepository
+import vip.mystery0.pixel.text.domain.settings.AppIdentityRepository
 import vip.mystery0.pixel.text.domain.spam.SpamClassifier
 import vip.mystery0.pixel.text.domain.spam.SpamClassifierFactory
 import vip.mystery0.pixel.text.domain.spam.KeywordSpamRepository
@@ -103,6 +105,8 @@ val appModule = module {
 
     single { AppSettingsRepositoryImpl(androidContext()) }
     single<AppSettingsRepository> { get<AppSettingsRepositoryImpl>() }
+    single<AppIdentityRepository> { AppIdentityRepositoryImpl(androidContext()) }
+    viewModel { vip.mystery0.pixel.text.viewmodel.AppIdentityViewModel(get()) }
     single { vip.mystery0.pixel.text.data.backup.RestoreSafetyCoordinator(androidContext()) }
     single { vip.mystery0.pixel.text.data.backup.AppDatabaseSnapshotter(get(), get(), get()) }
     single { vip.mystery0.pixel.text.data.backup.BackupDatabaseReader(get()) }

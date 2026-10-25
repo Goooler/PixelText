@@ -42,10 +42,378 @@
             android:theme="@style/Theme.PixelText">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.APP_MESSAGING" />
             </intent-filter>
         </activity>
+
+        <!-- 无界面转发入口，主界面不挂在会被禁用的桌面别名下。 -->
+        <activity
+            android:name=".LauncherActivity"
+            android:exported="false"
+            android:relinquishTaskIdentity="true"
+            android:theme="@android:style/Theme.NoDisplay" />
+
+        <!-- 桌面名称与图标独立组合，只有默认组合随安装启用。 -->
+        <activity-alias
+            android:name=".launcher.Identity_chisu_full_violet"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_identity_violet"
+            android:label="@string/app_name_identity_chisu_full"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_chisu_full_blue"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_identity_blue"
+            android:label="@string/app_name_identity_chisu_full"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_chisu_full_green"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_identity_green"
+            android:label="@string/app_name_identity_chisu_full"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_chisu_full_apricot"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_identity_apricot"
+            android:label="@string/app_name_identity_chisu_full"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_chisu_full_classic"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_classic"
+            android:label="@string/app_name_identity_chisu_full"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_sms_full_violet"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_identity_violet"
+            android:label="@string/app_name_identity_sms_full"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_sms_full_blue"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_identity_blue"
+            android:label="@string/app_name_identity_sms_full"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_sms_full_green"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_identity_green"
+            android:label="@string/app_name_identity_sms_full"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_sms_full_apricot"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_identity_apricot"
+            android:label="@string/app_name_identity_sms_full"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_sms_full_classic"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_classic"
+            android:label="@string/app_name_identity_sms_full"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_jianxun_full_violet"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_identity_violet"
+            android:label="@string/app_name_identity_jianxun_full"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_jianxun_full_blue"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_identity_blue"
+            android:label="@string/app_name_identity_jianxun_full"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_jianxun_full_green"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_identity_green"
+            android:label="@string/app_name_identity_jianxun_full"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_jianxun_full_apricot"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_identity_apricot"
+            android:label="@string/app_name_identity_jianxun_full"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_jianxun_full_classic"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_classic"
+            android:label="@string/app_name_identity_jianxun_full"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_pixel_text_violet"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_identity_violet"
+            android:label="@string/app_name_identity_pixel_text"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_pixel_text_blue"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_identity_blue"
+            android:label="@string/app_name_identity_pixel_text"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_pixel_text_green"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_identity_green"
+            android:label="@string/app_name_identity_pixel_text"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_pixel_text_apricot"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_identity_apricot"
+            android:label="@string/app_name_identity_pixel_text"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_pixel_text_classic"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_classic"
+            android:label="@string/app_name_identity_pixel_text"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_chisu_violet"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_identity_violet"
+            android:label="@string/app_name_identity_chisu"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_chisu_blue"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_identity_blue"
+            android:label="@string/app_name_identity_chisu"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_chisu_green"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_identity_green"
+            android:label="@string/app_name_identity_chisu"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_chisu_apricot"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_identity_apricot"
+            android:label="@string/app_name_identity_chisu"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_chisu_classic"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_classic"
+            android:label="@string/app_name_identity_chisu"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_sms_violet"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_identity_violet"
+            android:label="@string/app_name_identity_sms"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_sms_blue"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_identity_blue"
+            android:label="@string/app_name_identity_sms"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_sms_green"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_identity_green"
+            android:label="@string/app_name_identity_sms"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_sms_apricot"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_identity_apricot"
+            android:label="@string/app_name_identity_sms"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".launcher.Identity_sms_classic"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_classic"
+            android:label="@string/app_name_identity_sms"
+            android:targetActivity=".LauncherActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
 
         <!-- 1. BroadcastReceiver for SMS_DELIVER -->
         <receiver

@@ -195,7 +195,7 @@ fun VerificationCodeScreen(
                 )
 
                 !isDefaultSms -> CenterMessage(
-                    message = "请将 Pixel Text 设为默认短信应用后重试",
+                    message = "请将本应用设为默认短信应用后重试",
                     loading = false,
                     actionLabel = "设为默认",
                     onAction = { requestDefaultSmsRole(context, roleLauncher::launch) },
